@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcatdia - Tool 2: 波形採樣切割器</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #080b12; color: #fff; padding: 15px; display: flex; justify-content: center; }
+        .box { width: 100%; max-width: 500px; background: #101828; border: 1px solid #00e5ff; border-radius: 12px; padding: 16px; box-shadow: 0 0 15px rgba(0,229,255,0.2); }
+        h2 { color: #00e5ff; font-size: 18px; text-align: center; margin-bottom: 12px; }
+        .group { margin-bottom: 14px; }
+        label { display: block; font-size: 12px; color: #88a0c0; margin-bottom: 5px; }
+        input[type="file"] { width: 100%; padding: 8px; background: #040810; border: 1px dashed #00e5ff; border-radius: 6px; color: #fff; font-size: 12px; }
+        
+        .wave-wrapper { position: relative; width: 100%; height: 120px; background: #040810; border: 1px solid #1a2a40; border-radius: 6px; margin-bottom: 10px; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+        
+        .time-labels { display: flex; justify-content: space-between; font-size: 11px; color: #ffcc00; margin-bottom: 10px; }
+        .slider-box { margin-bottom: 10px; }
+        input[type="range"] { width: 100%; accent-color: #00e5ff; }
+        
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
+        button { padding: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; }
+        .btn-play { background: #ffaa00; color: #000; }
+        .btn-cut { background: #00e5ff; color: #000; grid-column: span 2; font-size: 14px; }
+        .status { font-size: 11px; color: #00ffcc; text-align: center; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>🌊 Tool 2: 波形採樣切割器</h2>
+
+    <div class="group">
+        <label>1. 選擇音檔 (MP3 / WAV)：</label>
+        <input type="file" id="audioFileInput" accept="audio/*">
+    </div>
+
+    <div class="wave-wrapper">
+        <canvas id="waveCanvas"></canvas>
+    </div>
+
+    <div class="time-labels">
+        <span>起點 (Start): <b id="lblStart">0.00s</b></span>
+        <span>總長度: <b id="lblDuration">0.00s</b></span>
+        <span>終點 (End): <b id="lblEnd">0.00s</b></span>
+    </div>
+
+    <div class="slider-box">
+        <label>📍 起點拉桿 (Start Point):</label>
+        <input type="range" id="startSlider" min="0" max="100" step="0.01" value="0">
+    </div>
+
+    <div class="slider-box">
+        <label>🏁 終點拉桿 (End Point):</label>
+        <input type="range" id="endSlider" min="0" max="100" step="0.01" value="100">
+    </div>
+
+    <div class="btn-grid">
+        <button class="btn-play" onclick="playSelection()">▶️ 試聽選取範圍</button>
+        <button class="btn-play" style="background:#ff3366; color:#fff;" onclick="stopAudio()">⏹️ 停止</button>
+        <button class="btn-cut" onclick="exportSlice()">💾 導出並下載切片音效 (.wav)</button>
+    </div>
+    
+    <div class="status" id="statusTxt">請先載入音檔，波形會即時繪製！</div>
+</div>
+
+<script>
+let actx = null;
+let rawBuffer = null;
+let currentSource = null;
+
+function getAudioContext() {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+}
+
+const canvas = document.getElementById('waveCanvas');
+const cctx = canvas.getContext('2d');
+const startSlider = document.getElementById('startSlider');
+const endSlider = document.getElementById('endSlider');
+
+document.getElementById('audioFileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('statusTxt').innerText = "⏳ 正在解碼波形...";
+    
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        const ctx = getAudioContext();
+        ctx.decodeAudioData(evt.target.result, function(buffer) {
+            rawBuffer = buffer;
+            const dur = buffer.duration;
+            document.getElementById('lblDuration').innerText = dur.toFixed(2) + "s";
+            
+            startSlider.max = dur;
+            startSlider.value = 0;
+            endSlider.max = dur;
+            endSlider.value = Math.min(dur, 1.0);
+            
+            updateLabels();
+            drawWaveform();
+            document.getElementById('statusTxt').innerText = "✅ 波形繪製完成！可以拖動拉桿框選音效。";
+        });
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+function drawWaveform() {
+    if (!rawBuffer) return;
+    const width = canvas.width = canvas.offsetWidth;
+    const height = canvas.height = canvas.offsetHeight;
+    const data = rawBuffer.getChannelData(0);
+    const step = Math.ceil(data.length / width);
+    const amp = height / 2;
+
+    cctx.fillStyle = '#040810';
+    cctx.fillRect(0, 0, width, height);
+
+    cctx.strokeStyle = '#00e5ff';
+    cctx.lineWidth = 1;
+    cctx.beginPath();
+    cctx.moveTo(0, amp);
+
+    for (let i = 0; i < width; i++) {
+        let min = 1.0, max = -1.0;
+        for (let j = 0; j < step; j++) {
+            const datum = data[(i * step) + j];
+            if (datum < min) min = datum;
+            if (datum > max) max = datum;
+        }
+        cctx.lineTo(i, (1 + min) * amp);
+        cctx.lineTo(i, (1 + max) * amp);
+    }
+    cctx.stroke();
+
+    const dur = rawBuffer.duration;
+    const startX = (parseFloat(startSlider.value) / dur) * width;
+    const endX = (parseFloat(endSlider.value) / dur) * width;
+
+    cctx.fillStyle = 'rgba(255, 204, 0, 0.3)';
+    cctx.fillRect(startX, 0, Math.max(2, endX - startX), height);
+
+    cctx.strokeStyle = '#ffaa00';
+    cctx.lineWidth = 2;
+    cctx.strokeRect(startX, 0, Math.max(2, endX - startX), height);
+}
+
+function updateLabels() {
+    const s = parseFloat(startSlider.value);
+    const e = parseFloat(endSlider.value);
+    document.getElementById('lblStart').innerText = s.toFixed(2) + "s";
+    document.getElementById('lblEnd').innerText = e.toFixed(2) + "s";
+}
+
+startSlider.addEventListener('input', function() {
+    if (parseFloat(this.value) >= parseFloat(endSlider.value)) {
+        this.value = parseFloat(endSlider.value) - 0.02;
+    }
+    updateLabels();
+    drawWaveform();
+});
+
+endSlider.addEventListener('input', function() {
+    if (parseFloat(this.value) <= parseFloat(startSlider.value)) {
+        this.value = parseFloat(startSlider.value) + 0.02;
+    }
+    updateLabels();
+    drawWaveform();
+});
+
+function stopAudio() {
+    if (currentSource) {
+        try { currentSource.stop(); } catch(e){}
+        currentSource = null;
+    }
+}
+
+function playSelection() {
+    if (!rawBuffer) return;
+    stopAudio();
+    const ctx = getAudioContext();
+    const s = parseFloat(startSlider.value);
+    const e = parseFloat(endSlider.value);
+    const duration = e - s;
+
+    currentSource = ctx.createBufferSource();
+    currentSource.buffer = rawBuffer;
+    currentSource.connect(ctx.destination);
+    currentSource.start(0, s, duration);
+}
+
+function exportSlice() {
+    if (!rawBuffer) return;
+    const s = parseFloat(startSlider.value);
+    const e = parseFloat(endSlider.value);
+    const sampleRate = rawBuffer.sampleRate;
+    const startFrame = Math.floor(s * sampleRate);
+    const endFrame = Math.floor(e * sampleRate);
+    const frameCount = endFrame - startFrame;
+
+    const ctx = getAudioContext();
+    const newBuf = ctx.createBuffer(1, frameCount, sampleRate);
+    newBuf.getChannelData(0).set(rawBuffer.getChannelData(0).slice(startFrame, endFrame));
+
+    const wavBlob = bufferToWaveBlob(newBuf);
+    const url = URL.createObjectURL(wavBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `slice_${s.toFixed(2)}s_to_${e.toFixed(2)}s.wav`;
+    a.click();
+    document.getElementById('statusTxt').innerText = "🎉 切片音效下載完成！可以丟去 Tool 1 調音。";
+}
+
+function bufferToWaveBlob(abuffer) {
+    let numOfChan = 1,
+        length = abuffer.length * 2 + 44,
+        out = new DataView(new ArrayBuffer(length)), pos = 0;
+    function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+    function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+    setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(1);
+    setUint32(abuffer.sampleRate); setUint32(abuffer.sampleRate * 2);
+    setUint16(2); setUint16(16);
+    setUint32(0x61746164); setUint32(length - pos - 4);
+    const chan = abuffer.getChannelData(0);
+    for (let i = 0; i < abuffer.length; i++) {
+        let sample = Math.max(-1, Math.min(1, chan[i]));
+        sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+        out.setInt16(pos, sample, true);
+        pos += 2;
+    }
+    return new Blob([out], { type: "audio/wav" });
+}
+</script>
+</body>
+</html>
