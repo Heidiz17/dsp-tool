@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcatdia - DSP 高級客製實驗室</title>
+    <title>Arcatdia - DSP 高級客製實驗室 (防誤觸櫃桶版)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { background: #060910; color: #fff; padding: 15px; display: flex; justify-content: center; }
@@ -21,6 +21,34 @@
         .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .btn-preset-clean { background: #1f2d40; color: #00f2fe; border: 1px solid #00f2fe; padding: 10px; font-size: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .btn-preset-recom { background: linear-gradient(90deg, #00b4db, #0083b0); color: #fff; border: none; padding: 10px; font-size: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* 🗄️ 防誤觸專用櫃桶樣式 */
+        .drawer-toggle {
+            background: #101c2e;
+            border: 1px solid #00f2fe;
+            color: #00f2fe;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            margin: 12px 0;
+            box-shadow: 0 0 12px rgba(0,242,254,0.15);
+        }
+        .drawer-content {
+            display: none; /* 預設閂門防誤觸 */
+            background: #070b14;
+            border: 1px dashed #1e293b;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 12px;
+        }
+        .drawer-content.open {
+            display: block; /* 開門展開 */
+        }
 
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         button { padding: 12px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; transition: 0.2s; }
@@ -49,61 +77,71 @@
         <button class="btn-preset-recom" onclick="setRecommendedPreset()">⚡ 寶寶洗底 Preset</button>
     </div>
 
-    <!-- 模組 1：Pitch 音調 -->
-    <div class="group">
-        <div class="group-header">
-            <label>⚡ 模組一：Pitch 音調微調</label>
-            <span class="val-disp" id="pitchVal">1.00x (原速原音)</span>
-        </div>
-        <input type="range" id="pitchSlider" min="0.5" max="3.0" step="0.02" value="1.00">
+    <!-- 🗄️ 櫃桶門欄開關 -->
+    <div class="drawer-toggle" onclick="toggleDrawer()">
+        <span id="drawerTitle">🎛️ 展開進階手動推桿 (已關門防誤觸)</span>
+        <span id="drawerArrow">▼</span>
     </div>
 
-    <!-- 模組 2：尾音裁切 -->
-    <div class="group">
-        <div class="group-header">
-            <label>✂️ 模組二：裁切尾音 (Trim Tail)</label>
-            <span class="val-disp" id="cutVal">0.00 秒 (原汁原味完整尾音)</span>
+    <!-- 🗄️ 櫃桶內部：所有推桿收埋喺入面，預設鎖死唔怕手指掂到！ -->
+    <div class="drawer-content" id="paramDrawer">
+        <!-- 模組 1：Pitch 音調 -->
+        <div class="group">
+            <div class="group-header">
+                <label>⚡ 模組一：Pitch 音調微調</label>
+                <span class="val-disp" id="pitchVal">1.00x (原速原音)</span>
+            </div>
+            <input type="range" id="pitchSlider" min="0.5" max="3.0" step="0.02" value="1.00">
         </div>
-        <input type="range" id="cutSlider" min="0.0" max="0.15" step="0.005" value="0.0">
+
+        <!-- 模組 2：尾音裁切 -->
+        <div class="group">
+            <div class="group-header">
+                <label>✂️ 模組二：裁切尾音 (Trim Tail)</label>
+                <span class="val-disp" id="cutVal">0.00 秒 (原汁原味完整尾音)</span>
+            </div>
+            <input type="range" id="cutSlider" min="0.0" max="0.15" step="0.005" value="0.0">
+        </div>
+
+        <!-- 模組 3：High-Pass 濾波器 -->
+        <div class="group">
+            <div class="group-header">
+                <label>🌊 模組三：High-Pass 去悶音低頻</label>
+                <label class="toggle-label"><input type="checkbox" id="hpToggle"> 開啟模組</label>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:4px;">
+                <span>切除頻率：</span><span class="val-disp" id="hpVal">80 Hz</span>
+            </div>
+            <input type="range" id="hpSlider" min="30" max="300" step="5" value="80">
+        </div>
+
+        <!-- 模組 4：Peaking 金屬感濾波器 -->
+        <div class="group">
+            <div class="group-header">
+                <label>✨ 模組四：Peaking 金屬敲擊光澤</label>
+                <label class="toggle-label"><input type="checkbox" id="peakToggle"> 開啟模組</label>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:4px;">
+                <span>提亮頻率：</span><span class="val-disp" id="peakFreqVal">3500 Hz</span>
+            </div>
+            <input type="range" id="peakFreqSlider" min="2000" max="6000" step="100" value="3500">
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:8px;">
+                <span>增益強度：</span><span class="val-disp" id="peakGainVal">+0.0 dB</span>
+            </div>
+            <input type="range" id="peakGainSlider" min="0.0" max="8.0" step="0.5" value="0.0">
+        </div>
+
+        <!-- 監聽音量 -->
+        <div class="group">
+            <div class="group-header">
+                <label>🔊 監聽音量</label>
+                <span class="val-disp" id="volVal">100%</span>
+            </div>
+            <input type="range" id="volSlider" min="0.1" max="2.0" step="0.1" value="1.0">
+        </div>
     </div>
 
-    <!-- 模組 3：High-Pass 濾波器 -->
-    <div class="group">
-        <div class="group-header">
-            <label>🌊 模組三：High-Pass 去悶音低頻</label>
-            <label class="toggle-label"><input type="checkbox" id="hpToggle"> 開啟模組</label>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:4px;">
-            <span>切除頻率：</span><span class="val-disp" id="hpVal">80 Hz</span>
-        </div>
-        <input type="range" id="hpSlider" min="30" max="300" step="5" value="80">
-    </div>
-
-    <!-- 模組 4：Peaking 金屬感濾波器 -->
-    <div class="group">
-        <div class="group-header">
-            <label>✨ 模組四：Peaking 金屬敲擊光澤</label>
-            <label class="toggle-label"><input type="checkbox" id="peakToggle"> 開啟模組</label>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:4px;">
-            <span>提亮頻率：</span><span class="val-disp" id="peakFreqVal">3500 Hz</span>
-        </div>
-        <input type="range" id="peakFreqSlider" min="2000" max="6000" step="100" value="3500">
-        <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:8px;">
-            <span>增益強度：</span><span class="val-disp" id="peakGainVal">+0.0 dB</span>
-        </div>
-        <input type="range" id="peakGainSlider" min="0.0" max="8.0" step="0.5" value="0.0">
-    </div>
-
-    <!-- 監聽音量 -->
-    <div class="group">
-        <div class="group-header">
-            <label>🔊 監聽音量</label>
-            <span class="val-disp" id="volVal">100%</span>
-        </div>
-        <input type="range" id="volSlider" min="0.1" max="2.0" step="0.1" value="1.0">
-    </div>
-
+    <!-- 安全操作大掣 -->
     <div class="btn-grid">
         <button class="btn-play" onclick="testPlay()">🔊 試聽手動調音</button>
         <button class="btn-play" style="background:#aa00ff; color:#fff;" onclick="testContinuousPlay()">🥁 4連打手感</button>
@@ -121,6 +159,23 @@ function getAudioContext() {
     if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
     if (actx.state === 'suspended') actx.resume();
     return actx;
+}
+
+// 🗄️ 櫃桶開關門邏輯
+function toggleDrawer(forceClose = false) {
+    const drawer = document.getElementById('paramDrawer');
+    const title = document.getElementById('drawerTitle');
+    const arrow = document.getElementById('drawerArrow');
+
+    if (forceClose || drawer.classList.contains('open')) {
+        drawer.classList.remove('open');
+        title.innerText = "🎛️ 展開進階手動推桿 (已關門防誤觸)";
+        arrow.innerText = "▼";
+    } else {
+        drawer.classList.add('open');
+        title.innerText = "🔒 收起進階推桿櫃桶 (關門防誤觸)";
+        arrow.innerText = "▲";
+    }
 }
 
 document.getElementById('audioInput').addEventListener('change', function(e) {
@@ -174,7 +229,7 @@ volSlider.addEventListener('input', function() {
     document.getElementById('volVal').innerText = Math.round(this.value * 100) + "%";
 });
 
-// ⭕ 模式一：純淨原版（全部歸零、Filter 全關、原汁原味）
+// ⭕ 模式一：純淨原版（全部歸零、Filter 全關、原汁原味 + 自動閂門）
 function setCleanOriginal() {
     pitchSlider.value = 1.00;
     document.getElementById('pitchVal').innerText = "1.00x (原音)";
@@ -191,14 +246,16 @@ function setCleanOriginal() {
     document.getElementById('peakFreqVal').innerText = "3500 Hz";
     peakGainSlider.value = 0.0;
     document.getElementById('peakGainVal').innerText = "+0.0 dB";
+
+    toggleDrawer(true); // 自動閂門，防手指劃過誤觸！
 }
 
-// ⚡ 模式二：寶寶推薦洗底 Preset（改 Pitch + 開濾波）
+// ⚡ 模式二：寶寶推薦洗底 Preset（改 Pitch + 開濾波 + 自動閂門）
 function setRecommendedPreset() {
     pitchSlider.value = 1.20;
     document.getElementById('pitchVal').innerText = "1.20x (升Key推薦)";
 
-    cutSlider.value = 0.0; // 尾音保證係 0，絕不強制剁尾
+    cutSlider.value = 0.0;
     document.getElementById('cutVal').innerText = "0.00 秒 (原汁原味完整尾音)";
 
     document.getElementById('hpToggle').checked = true;
@@ -210,6 +267,8 @@ function setRecommendedPreset() {
     document.getElementById('peakFreqVal').innerText = "3500 Hz";
     peakGainSlider.value = 3.0;
     document.getElementById('peakGainVal').innerText = "+3.0 dB";
+
+    toggleDrawer(true); // 自動閂門鎖好，安心操作！
 }
 
 // 試聽
