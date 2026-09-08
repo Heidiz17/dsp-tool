@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcatdia - DSP 自動切空氣音 & Base64 烘焙實驗室</title>
+    <title>Arcatdia - DSP 四合一洗底 & 烘焙實驗室</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { background: #080b12; color: #fff; padding: 20px; display: flex; justify-content: center; }
@@ -14,18 +14,19 @@
         input[type="file"] { width: 100%; padding: 8px; background: #030508; border: 1px dashed #00ffcc; border-radius: 8px; color: #fff; font-size: 12px; }
         input[type="range"] { width: 100%; accent-color: #00ffcc; }
         .val-disp { float: right; color: #ffcc00; font-weight: bold; }
-        .status-box { background: #030508; border: 1px solid #333; border-radius: 8px; padding: 10px; font-size: 12px; color: #00ffcc; margin-bottom: 15px; }
+        .status-box { background: #030508; border: 1px solid #333; border-radius: 8px; padding: 10px; font-size: 12px; color: #00ffcc; margin-bottom: 15px; line-height: 1.6; }
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         button { padding: 12px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; }
         .btn-play { background: #ffaa00; color: #000; }
         .btn-bake { background: #00ffcc; color: #000; grid-column: span 2; font-size: 14px; }
-        textarea { width: 100%; height: 100px; margin-top: 15px; background: #030508; border: 1px solid #444; border-radius: 8px; color: #00ffcc; padding: 8px; font-size: 11px; word-break: break-all; resize: none; }
+        .btn-auto-4 { background: linear-gradient(90deg, #ffcc00, #ff0055); color: #fff; grid-column: span 2; font-size: 14px; box-shadow: 0 0 10px rgba(255,0,85,0.4); }
+        textarea { width: 100%; height: 80px; margin-top: 15px; background: #030508; border: 1px solid #444; border-radius: 8px; color: #00ffcc; padding: 8px; font-size: 11px; word-break: break-all; resize: none; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h2>🎛️ DSP 自動去空氣音實驗室</h2>
+    <h2>🎛️ Arcatdia DSP 四合一洗底實驗室</h2>
 
     <div class="group">
         <label>1. 選擇你的原始音檔 (MP3 / WAV)：</label>
@@ -33,31 +34,38 @@
     </div>
 
     <div class="status-box" id="trimStatus">
-        等待選擇檔案...（載入後會自動切走前後空氣音）
+        等待選擇檔案...（載入後自動切除頭部靜音空氣音）
     </div>
 
     <div class="group">
-        <label>2. Pitch 音調調整：<span class="val-disp" id="pitchVal">2.0x (高音)</span></label>
-        <input type="range" id="pitchSlider" min="0.5" max="10.0" step="0.1" value="2.0">
+        <label>2. Pitch 速度/音調微調：<span class="val-disp" id="pitchVal">1.2x (升Key)</span></label>
+        <input type="range" id="pitchSlider" min="0.5" max="3.0" step="0.05" value="1.2">
     </div>
 
     <div class="group">
-        <label>3. 預覽音量 (Volume)：<span class="val-disp" id="volVal">100%</span></label>
+        <label>3. 裁切尾音長度 (Trim Decay)：<span class="val-disp" id="decayVal">0.075 秒</span></label>
+        <input type="range" id="decaySlider" min="0.03" max="0.15" step="0.005" value="0.075">
+    </div>
+
+    <div class="group">
+        <label>4. 預覽音量 (Volume)：<span class="val-disp" id="volVal">100%</span></label>
         <input type="range" id="volSlider" min="0.1" max="2.0" step="0.1" value="1.0">
     </div>
 
     <div class="btn-grid">
-        <button class="btn-play" onclick="testPlay()">🔊 試聽打擊</button>
+        <button class="btn-play" onclick="testPlay()">🔊 試聽單發打擊</button>
         <button class="btn-play" style="background:#aa00ff; color:#fff;" onclick="testContinuousPlay()">🥁 4連打手感</button>
-        <button class="btn-bake" onclick="bakeAndExport()">✨ 自動裁切 + 烘焙極短 Base64</button>
+        <button class="btn-auto-4" onclick="runArcatdiaAutoBake()">⚡ 一掣四招：Arcatdia 原創洗底導出 (WAV+Base64)</button>
+        <button class="btn-bake" onclick="bakeAndExport()">✨ 僅手動烘焙 Base64</button>
     </div>
 
-    <textarea id="outputBase64" placeholder="點擊綠色按鈕後，這裡會生成超短 Base64 並自動複製..."></textarea>
+    <textarea id="outputBase64" placeholder="處理完成後，這裡會顯示 Base64 並自動複製到剪貼簿..."></textarea>
 </div>
 
 <script>
 let actx = null;
-let trimmedBuffer = null;
+let rawBuffer = null;
+let currentFileName = "sound";
 
 function getAudioContext() {
     if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -65,56 +73,32 @@ function getAudioContext() {
     return actx;
 }
 
-// 自動切走前後空氣音（Silence Trimming）
-function autoTrimBuffer(buffer) {
-    const threshold = 0.015; // 聲音觸發門檻
+// 第一招底層：抓取真正的起始點（砍掉前面空氣靜音）
+function findStartFrame(buffer) {
+    const threshold = 0.015;
     const channelData = buffer.getChannelData(0);
-    const totalFrames = channelData.length;
-    let startFrame = 0;
-    
-    // 搵第一粒真正有聲的點（砍掉開頭靜音）
-    for (let i = 0; i < totalFrames; i++) {
+    for (let i = 0; i < channelData.length; i++) {
         if (Math.abs(channelData[i]) > threshold) {
-            startFrame = Math.max(0, i - 50); // 保留極微小緩衝防爆音
-            break;
+            return Math.max(0, i - 40); // 預留 40 frames 防爆音
         }
     }
-
-    // 音遊打擊聲極限保留 0.09 秒即可，後面多餘的全部拋棄
-    const maxFrames = Math.floor(buffer.sampleRate * 0.09);
-    const endFrame = Math.min(totalFrames, startFrame + maxFrames);
-    const frameCount = endFrame - startFrame;
-
-    const ctx = getAudioContext();
-    const newBuf = ctx.createBuffer(1, frameCount, buffer.sampleRate); // 轉單聲道大幅減低體積
-    const newChan = newBuf.getChannelData(0);
-
-    for (let i = 0; i < frameCount; i++) {
-        // 自然極速淡出，避免音尾爆喀嗒聲
-        const fade = (i > frameCount - 200) ? (frameCount - i) / 200 : 1.0;
-        newChan[i] = channelData[startFrame + i] * fade;
-    }
-
-    return {
-        buffer: newBuf,
-        cutBefore: (startFrame / buffer.sampleRate).toFixed(3),
-        finalDuration: (frameCount / buffer.sampleRate).toFixed(3)
-    };
+    return 0;
 }
 
 document.getElementById('audioInput').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
+    currentFileName = file.name.replace(/\.[^/.]+$/, "");
     const reader = new FileReader();
     reader.onload = function(evt) {
         const ctx = getAudioContext();
         ctx.decodeAudioData(evt.target.result, function(buffer) {
-            const res = autoTrimBuffer(buffer);
-            trimmedBuffer = res.buffer;
+            rawBuffer = buffer;
+            const start = findStartFrame(buffer);
             document.getElementById('trimStatus').innerHTML = 
-                `⚡ <b>自動切除空氣音成功！</b><br>` +
-                `✂️ 前頭靜音切走：${res.cutBefore} 秒<br>` +
-                `🎯 精確打擊核心：保留超短 ${res.finalDuration} 秒`;
+                `⚡ <b>音訊載入成功！</b><br>` +
+                `📁 檔案：${file.name}<br>` +
+                `✂️ 檢測到前頭空氣音：${(start / buffer.sampleRate).toFixed(4)} 秒（烘焙時自動削平）`;
         });
     };
     reader.readAsArrayBuffer(file);
@@ -122,7 +106,12 @@ document.getElementById('audioInput').addEventListener('change', function(e) {
 
 const pitchSlider = document.getElementById('pitchSlider');
 pitchSlider.addEventListener('input', function() {
-    document.getElementById('pitchVal').innerText = this.value + "x " + (this.value > 1.0 ? "(高音)" : "(低音)");
+    document.getElementById('pitchVal').innerText = this.value + "x " + (this.value > 1.0 ? "(升Key)" : "(降Key)");
+});
+
+const decaySlider = document.getElementById('decaySlider');
+decaySlider.addEventListener('input', function() {
+    document.getElementById('decayVal').innerText = parseFloat(this.value).toFixed(3) + " 秒";
 });
 
 const volSlider = document.getElementById('volSlider');
@@ -130,55 +119,115 @@ volSlider.addEventListener('input', function() {
     document.getElementById('volVal').innerText = Math.round(this.value * 100) + "%";
 });
 
+// 試聽（實時套用 Pitch + 雙濾波效果）
 function testPlay(delay = 0) {
-    if (!trimmedBuffer) { alert("請先選擇音檔！"); return; }
+    if (!rawBuffer) { alert("請先選擇音檔！"); return; }
     const ctx = getAudioContext();
-    const src = ctx.createBufferSource();
-    const gain = ctx.createGain();
+    const startFrame = findStartFrame(rawBuffer);
+    const startOffset = startFrame / rawBuffer.sampleRate;
 
-    src.buffer = trimmedBuffer;
+    const src = ctx.createBufferSource();
+    src.buffer = rawBuffer;
     src.playbackRate.value = parseFloat(pitchSlider.value);
+
+    // 實時濾波器鏈條
+    const highPass = ctx.createBiquadFilter();
+    highPass.type = 'highpass';
+    highPass.frequency.value = 100; // 去悶音低頻
+
+    const peakFilter = ctx.createBiquadFilter();
+    peakFilter.type = 'peaking';
+    peakFilter.frequency.value = 3500; // 提亮打擊金屬感
+    peakFilter.gain.value = 3.0;
+
+    const gain = ctx.createGain();
     gain.gain.value = parseFloat(volSlider.value);
 
-    src.connect(gain);
+    src.connect(highPass);
+    highPass.connect(peakFilter);
+    peakFilter.connect(gain);
     gain.connect(ctx.destination);
-    src.start(ctx.currentTime + delay);
+
+    const now = ctx.currentTime + delay;
+    src.start(now, startOffset);
+    // 依據 Decay Slider 強制收刀
+    const maxDur = parseFloat(decaySlider.value) / parseFloat(pitchSlider.value);
+    src.stop(now + maxDur);
 }
 
 function testContinuousPlay() {
-    for (let i = 0; i < 4; i++) testPlay(i * 0.12);
+    for (let i = 0; i < 4; i++) testPlay(i * 0.11);
+}
+
+// ⚡ 核心招式：一掣四連擊洗底導出（Pitch + 裁尾淡出 + 濾波調色 + 自動存檔）
+async function runArcatdiaAutoBake() {
+    if (!rawBuffer) { alert("請先選擇音檔！"); return; }
+
+    const pitch = parseFloat(pitchSlider.value);
+    const decayTime = parseFloat(decaySlider.value);
+    const sampleRate = rawBuffer.sampleRate;
+    const startFrame = findStartFrame(rawBuffer);
+
+    // 1. 計算切尾後的新長度
+    const totalFrames = Math.ceil(decayTime * sampleRate);
+    const offlineCtx = new OfflineAudioContext(1, totalFrames, sampleRate);
+
+    // 2. 建立音源並套用 Pitch
+    const src = offlineCtx.createBufferSource();
+    src.buffer = rawBuffer;
+    src.playbackRate.value = pitch;
+
+    // 3. 濾波器：切走 100Hz 雜音 + 3.5kHz 增益
+    const highPass = offlineCtx.createBiquadFilter();
+    highPass.type = 'highpass';
+    highPass.frequency.value = 100;
+
+    const peakFilter = offlineCtx.createBiquadFilter();
+    peakFilter.type = 'peaking';
+    peakFilter.frequency.value = 3500;
+    peakFilter.gain.value = 3.5;
+
+    // 4. 尾端極速淡出（防爆音）
+    const gainNode = offlineCtx.createGain();
+    const fadeFrames = Math.floor(sampleRate * 0.015); // 最後 15ms 淡出
+    const fadeStartTime = (totalFrames - fadeFrames) / sampleRate;
+    gainNode.gain.setValueAtTime(1.0, fadeStartTime);
+    gainNode.gain.linearRampToValueAtTime(0.001, totalFrames / sampleRate);
+
+    // 串接管線
+    src.connect(highPass);
+    highPass.connect(peakFilter);
+    peakFilter.connect(gainNode);
+    gainNode.connect(offlineCtx.destination);
+
+    // 開始渲染
+    src.start(0, startFrame / sampleRate);
+    const rendered = await offlineCtx.startRendering();
+
+    // 轉 WAV Blob
+    const wavBlob = bufferToWaveBlob(rendered);
+
+    // 自動下載洗底後的 WAV 檔
+    const downloadLink = document.createElement('a');
+    downloadLink.href = URL.createObjectURL(wavBlob);
+    downloadLink.download = `arcatdia_${currentFileName}.wav`;
+    downloadLink.click();
+
+    // 同步轉 Base64 並複製
+    const reader = new FileReader();
+    reader.onloadend = function() {
+        const base64data = reader.result;
+        const output = document.getElementById('outputBase64');
+        output.value = base64data;
+        output.select();
+        navigator.clipboard.writeText(base64data);
+        alert(`🎉 洗底成功！\n1. 已下載：arcatdia_${currentFileName}.wav\n2. 原創波形已生成 (Pitch: ${pitch}x, Decay: ${decayTime}s)\n3. Base64 已自動複製！`);
+    };
+    reader.readAsDataURL(wavBlob);
 }
 
 function bakeAndExport() {
-    if (!trimmedBuffer) { alert("請先選擇音檔！"); return; }
-    const pitch = parseFloat(pitchSlider.value);
-    const newDuration = trimmedBuffer.duration / pitch;
-    const sampleRate = trimmedBuffer.sampleRate;
-    const frameCount = Math.ceil(newDuration * sampleRate);
-
-    const offlineCtx = new OfflineAudioContext(1, frameCount, sampleRate);
-    const src = offlineCtx.createBufferSource();
-    src.buffer = trimmedBuffer;
-    src.playbackRate.value = pitch;
-    src.connect(offlineCtx.destination);
-    src.start(0);
-
-    offlineCtx.startRendering().then(renderedBuffer => {
-        const wavBlob = bufferToWaveBlob(renderedBuffer);
-        const reader = new FileReader();
-        reader.onloadend = function() {
-            const base64data = reader.result;
-            const output = document.getElementById('outputBase64');
-            output.value = base64data;
-            output.select();
-            navigator.clipboard.writeText(base64data).then(() => {
-                alert("🎉 搞掂！前後空氣音已切走，超短 Base64 複製好！");
-            }).catch(() => {
-                alert("請手動複製文字框內容！");
-            });
-        };
-        reader.readAsDataURL(wavBlob);
-    });
+    runArcatdiaAutoBake();
 }
 
 function bufferToWaveBlob(abuffer) {
