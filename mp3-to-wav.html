@@ -1,1 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcatdia - MP3 to WAV 零延遲轉換器</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #080b12; color: #fff; padding: 16px; display: flex; justify-content: center; }
+        .box { width: 100%; max-width: 500px; background: #101828; border: 1px solid #00ffcc; border-radius: 12px; padding: 18px; box-shadow: 0 0 20px rgba(0,255,204,0.2); }
+        h2 { color: #00ffcc; font-size: 19px; text-align: center; margin-bottom: 12px; }
+        .desc { font-size: 12px; color: #88a0c0; margin-bottom: 16px; text-align: center; line-height: 1.4; }
+        .group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; color: #88a0c0; margin-bottom: 6px; }
+        input[type="file"] { width: 100%; padding: 10px; background: #040810; border: 1px dashed #00ffcc; border-radius: 6px; color: #fff; font-size: 12px; }
+        
+        .result-box { background: #040810; border: 1px solid #1a2a40; border-radius: 8px; padding: 12px; margin-bottom: 15px; font-size: 13px; line-height: 1.6; }
+        .stat-val { color: #00ffcc; font-weight: bold; }
+        .alert-cut { color: #ffcc00; font-weight: bold; }
+
+        .slider-box { margin-bottom: 12px; }
+        input[type="range"] { width: 100%; accent-color: #00ffcc; }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        button { padding: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; }
+        .btn-play { background: #ffaa00; color: #000; }
+        .btn-stop { background: #444; color: #fff; }
+        .btn-save-wav { background: #00ffcc; color: #000; grid-column: span 2; font-size: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>⚡ MP3 轉 WAV (零延遲版)</h2>
+    <div class="desc">丟入成首 3 分半鐘 MP3，自動斬斷開頭空氣槽，一鍵導出對齊 0 點的無損 WAV！</div>
+
+    <div class="group">
+        <label>1. 選擇 MP3 歌曲：</label>
+        <input type="file" id="songInput" accept="audio/*">
+    </div>
+
+    <div class="result-box" id="analysisBox">
+        狀態：等待載入 MP3 檔案...
+    </div>
+
+    <div class="slider-box">
+        <label>靜音偵測靈敏度 (越低越敏銳)：<span id="threshDisp" style="color:#00ffcc; font-weight:bold;">0.012</span></label>
+        <input type="range" id="threshSlider" min="0.002" max="0.05" step="0.002" value="0.012">
+    </div>
+
+    <div class="btn-grid">
+        <button class="btn-play" onclick="previewHead()">🔊 試聽開頭 4 秒</button>
+        <button class="btn-stop" onclick="stopAudio()">⏹️ 停止</button>
+        <button class="btn-save-wav" onclick="exportAlignedWAV()">💾 一鍵導出並下載 WAV (.wav)</button>
+    </div>
+</div>
+
+<script>
+let actx = null;
+let originalBuffer = null;
+let alignedBuffer = null;
+let currentSource = null;
+let detectedOffsetSec = 0;
+
+function getAudioContext() {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+}
+
+const threshSlider = document.getElementById('threshSlider');
+threshSlider.addEventListener('input', function() {
+    document.getElementById('threshDisp').innerText = this.value;
+    if (originalBuffer) processAlignment();
+});
+
+document.getElementById('songInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('analysisBox').innerHTML = "⏳ 正在掃描並解碼整首 MP3，請稍候...";
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+        const ctx = getAudioContext();
+        ctx.decodeAudioData(evt.target.result, function(buffer) {
+            originalBuffer = buffer;
+            processAlignment();
+        });
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+function processAlignment() {
+    if (!originalBuffer) return;
+    const threshold = parseFloat(threshSlider.value);
+    const channelL = originalBuffer.getChannelData(0);
+    const channelR = originalBuffer.numberOfChannels > 1 ? originalBuffer.getChannelData(1) : channelL;
+    const totalFrames = originalBuffer.length;
+
+    let startFrame = 0;
+    for (let i = 0; i < totalFrames; i++) {
+        if (Math.abs(channelL[i]) > threshold || Math.abs(channelR[i]) > threshold) {
+            startFrame = Math.max(0, i - 30);
+            break;
+        }
+    }
+
+    detectedOffsetSec = startFrame / originalBuffer.sampleRate;
+    const newFrameCount = totalFrames - startFrame;
+    const ctx = getAudioContext();
+
+    alignedBuffer = ctx.createBuffer(
+        originalBuffer.numberOfChannels,
+        newFrameCount,
+        originalBuffer.sampleRate
+    );
+
+    for (let ch = 0; ch < originalBuffer.numberOfChannels; ch++) {
+        alignedBuffer.getChannelData(ch).set(
+            originalBuffer.getChannelData(ch).slice(startFrame)
+        );
+    }
+
+    const cutMs = (detectedOffsetSec * 1000).toFixed(1);
+    document.getElementById('analysisBox').innerHTML = 
+        `🎯 <b>掃描成功！</b><br>` +
+        `✂️ 成功剔除前面空氣槽：<span class="alert-cut">${detectedOffsetSec.toFixed(3)} 秒 (${cutMs} ms)</span><br>` +
+        `⏱️ 原始長度：${originalBuffer.duration.toFixed(2)} 秒<br>` +
+        `⚡ WAV 對齊長度：<span class="stat-val">${alignedBuffer.duration.toFixed(2)} 秒</span> (開波即咬正)`;
+}
+
+function stopAudio() {
+    if (currentSource) {
+        try { currentSource.stop(); } catch(e){}
+        currentSource = null;
+    }
+}
+
+function previewHead() {
+    if (!alignedBuffer) { alert("請先選擇 MP3 歌曲！"); return; }
+    stopAudio();
+    const ctx = getAudioContext();
+    currentSource = ctx.createBufferSource();
+    currentSource.buffer = alignedBuffer;
+    currentSource.connect(ctx.destination);
+    currentSource.start(0, 0, 4);
+}
+
+function exportAlignedWAV() {
+    if (!alignedBuffer) { alert("請先選擇歌曲！"); return; }
+    const isStereo = alignedBuffer.numberOfChannels > 1;
+    const sampleRate = alignedBuffer.sampleRate;
+    const frameCount = alignedBuffer.length;
+    const numOfChan = isStereo ? 2 : 1;
+    const length = frameCount * numOfChan * 2 + 44;
+
+    const out = new DataView(new ArrayBuffer(length));
+    let pos = 0;
+
+    function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+    function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+    setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+    setUint32(sampleRate); setUint32(sampleRate * numOfChan * 2);
+    setUint16(numOfChan * 2); setUint16(16);
+    setUint32(0x61746164); setUint32(length - pos - 4);
+
+    const c0 = alignedBuffer.getChannelData(0);
+    const c1 = isStereo ? alignedBuffer.getChannelData(1) : null;
+
+    for (let i = 0; i < frameCount; i++) {
+        let s0 = Math.max(-1, Math.min(1, c0[i]));
+        out.setInt16(pos, (0.5 + s0 < 0 ? s0 * 32768 : s0 * 32767) | 0, true);
+        pos += 2;
+        if (isStereo) {
+            let s1 = Math.max(-1, Math.min(1, c1[i]));
+            out.setInt16(pos, (0.5 + s1 < 0 ? s1 * 32768 : s1 * 32767) | 0, true);
+            pos += 2;
+        }
+    }
+
+    const blob = new Blob([out], { type: "audio/wav" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bgm_aligned.wav`;
+    a.click();
+}
+</script>
+</body>
+</html>
 
