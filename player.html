@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tool 4: 影音播放與切片機 (Player & Cutter Pro)</title>
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: #161f30;
+      --accent: #00f2fe;
+      --accent-glow: rgba(0, 242, 254, 0.4);
+      --text: #e2e8f0;
+      --danger: #ff4757;
+      --warning: #ffa502;
+      --success: #2ed573;
+    }
+    body {
+      margin: 0;
+      padding: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 540px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      border: 1px solid #1e293b;
+    }
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 1.15rem;
+      color: var(--accent);
+      text-align: center;
+      letter-spacing: 1px;
+    }
+    .video-wrapper {
+      width: 100%;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      border: 1px solid #334155;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 200px;
+    }
+    video {
+      width: 100%;
+      max-height: 300px;
+      display: block;
+      background: #000;
+    }
+    .file-box {
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .btn-file {
+      display: inline-block;
+      padding: 10px 18px;
+      background: #1e293b;
+      color: var(--accent);
+      border: 1px dashed var(--accent);
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    .track-name {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      word-break: break-all;
+    }
+    .progress-section {
+      margin: 10px 0;
+    }
+    .time-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      font-family: monospace;
+      margin-bottom: 4px;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin: 10px 0;
+    }
+    button {
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid #334155;
+      padding: 10px 6px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    button:active {
+      transform: scale(0.96);
+      background: #334155;
+    }
+    .btn-play {
+      background: var(--accent);
+      color: #0b0f19;
+      font-weight: bold;
+      grid-column: span 4;
+      padding: 12px;
+      font-size: 1.05rem;
+      border: none;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+    .section-box {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 12px;
+      margin-top: 10px;
+      border: 1px solid #1e293b;
+    }
+    .slider-row {
+      margin: 6px 0;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 2px;
+    }
+    .loop-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .loop-controls button {
+      flex: 1;
+    }
+    .btn-active {
+      background: var(--warning) !important;
+      color: #000 !important;
+      font-weight: bold;
+    }
+    .btn-cut {
+      width: 100%;
+      margin-top: 10px;
+      background: var(--success);
+      color: #000;
+      font-weight: bold;
+      font-size: 0.95rem;
+      border: none;
+      padding: 12px;
+      box-shadow: 0 0 12px rgba(46, 213, 115, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>🎬 影音播放與切片一體機 (Pro)</h2>
+
+  <div class="video-wrapper">
+    <video id="mediaPlayer" playsinline></video>
+  </div>
+
+  <div class="file-box">
+    <label class="btn-file" for="mediaInput">📂 選擇影片或音檔 (MP4 / OPUS / MP3 / WAV)</label>
+    <input type="file" id="mediaInput" accept="video/*,audio/*">
+    <div id="trackName" class="track-name">未選擇檔案</div>
+  </div>
+
+  <div class="progress-section">
+    <div class="time-info">
+      <span id="currentTime">00:00.0</span>
+      <span id="durationTime">00:00.0</span>
+    </div>
+    <input type="range" id="seekSlider" min="0" value="0" step="0.05">
+  </div>
+
+  <button id="btnPlay" class="btn-play">▶ 播放</button>
+
+  <div class="controls-grid">
+    <button id="btnBack5">⏪ -5s</button>
+    <button id="btnBack05">◀ -0.5s</button>
+    <button id="btnFwd05">▶ +0.5s</button>
+    <button id="btnFwd5">⏩ +5s</button>
+  </div>
+
+  <!-- 速度與 Pitch -->
+  <div class="section-box">
+    <div class="slider-row">
+      <div class="slider-label">
+        <span>變速 (Speed) - 保持音調</span>
+        <span id="valSpeed">1.00x</span>
+      </div>
+      <input type="range" id="speedSlider" min="0.25" max="2.0" step="0.05" value="1.0">
+    </div>
+    <div class="slider-row" style="margin-top:10px;">
+      <div class="slider-label">
+        <span>音調微調 (Pitch / 半音)</span>
+        <span id="valPitch">0 半音</span>
+      </div>
+      <input type="range" id="pitchSlider" min="-6" max="6" step="1" value="0">
+    </div>
+  </div>
+
+  <!-- AB 點鎖定與一鍵剪片 -->
+  <div class="section-box">
+    <div class="slider-label">
+      <span>✂️ AB 採樣剪輯區間</span>
+      <span id="loopStatus" style="color:var(--accent);">未設定</span>
+    </div>
+    <div class="loop-controls">
+      <button id="btnSetA">📍 設為 A 點</button>
+      <button id="btnSetB">🏁 設為 B 點</button>
+      <button id="btnClearLoop" style="color:var(--danger);">重設</button>
+    </div>
+    <button id="btnExportWav" class="btn-cut">💾 導出 AB 區間無損音效 (.wav)</button>
+  </div>
+</div>
+<script>
+  const player = document.getElementById('mediaPlayer');
+  let currentFile = null;
+  let loopA = null;
+  let loopB = null;
+  let isLooping = false;
+
+  const mediaInput = document.getElementById('mediaInput');
+  const trackName = document.getElementById('trackName');
+  const btnPlay = document.getElementById('btnPlay');
+  const seekSlider = document.getElementById('seekSlider');
+  const currentTimeLabel = document.getElementById('currentTime');
+  const durationTimeLabel = document.getElementById('durationTime');
+
+  const speedSlider = document.getElementById('speedSlider');
+  const valSpeed = document.getElementById('valSpeed');
+  const pitchSlider = document.getElementById('pitchSlider');
+  const valPitch = document.getElementById('valPitch');
+
+  const btnSetA = document.getElementById('btnSetA');
+  const btnSetB = document.getElementById('btnSetB');
+  const btnClearLoop = document.getElementById('btnClearLoop');
+  const loopStatus = document.getElementById('loopStatus');
+  const btnExportWav = document.getElementById('btnExportWav');
+
+  function fmt(sec) {
+    if (isNaN(sec)) return "00:00.0";
+    let m = Math.floor(sec / 60);
+    let s = Math.floor(sec % 60);
+    let ms = Math.floor((sec % 1) * 10);
+    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s + "." + ms;
+  }
+
+  mediaInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    currentFile = file;
+    trackName.textContent = file.name;
+    const fileURL = URL.createObjectURL(file);
+    player.src = fileURL;
+    player.preservesPitch = true;
+    player.load();
+    btnPlay.textContent = "▶ 播放";
+    clearLoop();
+  });
+
+  player.addEventListener('loadedmetadata', () => {
+    seekSlider.max = player.duration;
+    durationTimeLabel.textContent = fmt(player.duration);
+  });
+
+  player.addEventListener('timeupdate', () => {
+    seekSlider.value = player.currentTime;
+    currentTimeLabel.textContent = fmt(player.currentTime);
+
+    if (isLooping && loopB !== null && player.currentTime >= loopB) {
+      player.currentTime = loopA || 0;
+    }
+  });
+
+  btnPlay.addEventListener('click', () => {
+    if (!player.src) return;
+    if (player.paused) {
+      player.play();
+      btnPlay.textContent = "⏸ 暫停";
+    } else {
+      player.pause();
+      btnPlay.textContent = "▶ 播放";
+    }
+  });
+
+  document.getElementById('btnBack5').addEventListener('click', () => { player.currentTime = Math.max(0, player.currentTime - 5); });
+  document.getElementById('btnBack05').addEventListener('click', () => { player.currentTime = Math.max(0, player.currentTime - 0.5); });
+  document.getElementById('btnFwd05').addEventListener('click', () => { player.currentTime = Math.min(player.duration, player.currentTime + 0.5); });
+  document.getElementById('btnFwd5').addEventListener('click', () => { player.currentTime = Math.min(player.duration, player.currentTime + 5); });
+
+  seekSlider.addEventListener('input', () => {
+    player.currentTime = seekSlider.value;
+  });
+
+  speedSlider.addEventListener('input', (e) => {
+    const spd = parseFloat(e.target.value);
+    player.playbackRate = spd;
+    valSpeed.textContent = spd.toFixed(2) + "x";
+  });
+
+  pitchSlider.addEventListener('input', (e) => {
+    const semi = parseInt(e.target.value);
+    valPitch.textContent = (semi > 0 ? "+" : "") + semi + " 半音";
+    if (semi === 0) {
+      player.preservesPitch = true;
+    } else {
+      player.preservesPitch = false;
+      let factor = Math.pow(2, semi / 12);
+      player.playbackRate = speedSlider.value * factor;
+    }
+  });
+
+  btnSetA.addEventListener('click', () => {
+    loopA = player.currentTime;
+    btnSetA.classList.add('btn-active');
+    btnSetA.textContent = "A: " + fmt(loopA);
+    checkLoopActive();
+  });
+
+  btnSetB.addEventListener('click', () => {
+    if (loopA === null) loopA = 0;
+    loopB = player.currentTime;
+    if (loopB <= loopA) loopB = loopA + 0.2;
+    btnSetB.classList.add('btn-active');
+    btnSetB.textContent = "B: " + fmt(loopB);
+    checkLoopActive();
+  });
+
+  function checkLoopActive() {
+    if (loopA !== null && loopB !== null) {
+      isLooping = true;
+      let len = (loopB - loopA).toFixed(2);
+      loopStatus.textContent = `${fmt(loopA)} ➔ ${fmt(loopB)} (${len}s)`;
+    }
+  }
+
+  function clearLoop() {
+    loopA = null;
+    loopB = null;
+    isLooping = false;
+    btnSetA.classList.remove('btn-active');
+    btnSetB.classList.remove('btn-active');
+    btnSetA.textContent = "📍 設為 A 點";
+    btnSetB.textContent = "🏁 設為 B 點";
+    loopStatus.textContent = "未設定";
+  }
+
+  btnClearLoop.addEventListener('click', clearLoop);
+
+  btnExportWav.addEventListener('click', async () => {
+    if (!currentFile) {
+      alert("請先選擇檔案！");
+      return;
+    }
+    if (loopA === null || loopB === null) {
+      alert("請先設定 A 點同 B 點！");
+      return;
+    }
+
+    const originalText = btnExportWav.textContent;
+    btnExportWav.textContent = "⏳ 解碼切割中...";
+    btnExportWav.disabled = true;
+
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const arrayBuffer = await currentFile.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      const sampleRate = audioBuffer.sampleRate;
+      const startSample = Math.floor(loopA * sampleRate);
+      const endSample = Math.min(Math.floor(loopB * sampleRate), audioBuffer.length);
+      const frameCount = endSample - startSample;
+
+      if (frameCount <= 0) {
+        alert("選取範圍太短！");
+        return;
+      }
+
+      const numChannels = audioBuffer.numberOfChannels;
+      const cutBuffer = audioCtx.createBuffer(numChannels, frameCount, sampleRate);
+
+      for (let i = 0; i < numChannels; i++) {
+        const srcData = audioBuffer.getChannelData(i);
+        const destData = cutBuffer.getChannelData(i);
+        for (let j = 0; j < frameCount; j++) {
+          destData[j] = srcData[startSample + j];
+        }
+      }
+
+      const wavBlob = audioBufferToWavBlob(cutBuffer);
+      const downloadUrl = URL.createObjectURL(wavBlob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `cut_${fmt(loopA).replace(/[:.]/g,'-')}_to_${fmt(loopB).replace(/[:.]/g,'-')}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+    } catch (err) {
+      alert("切片導出失敗: " + err.message);
+    } finally {
+      btnExportWav.textContent = originalText;
+      btnExportWav.disabled = false;
+    }
+  });
+
+  function audioBufferToWavBlob(buffer) {
+    const numOfChan = buffer.numberOfChannels;
+    const length = buffer.length * numOfChan * 2 + 44;
+    const out = new DataView(new ArrayBuffer(length));
+    let offset = 0;
+    let pos = 0;
+
+    function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+    function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+    setUint32(0x46464952); // "RIFF"
+    setUint32(length - 8);
+    setUint32(0x45564157); // "WAVE"
+    setUint32(0x20746d66); // "fmt "
+    setUint32(16);          // 16 bit
+    setUint16(1);           // PCM
+    setUint16(numOfChan);
+    setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * 2 * numOfChan);
+    setUint16(numOfChan * 2);
+    setUint16(16);
+    setUint32(0x61746164); // "data"
+    setUint32(length - pos - 4);
+
+    const channels = [];
+    for (let i = 0; i < buffer.numberOfChannels; i++) {
+      channels.push(buffer.getChannelData(i));
+    }
+
+    while (pos < length) {
+      for (let i = 0; i < numOfChan; i++) {
+        let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+        sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+        out.setInt16(pos, sample, true);
+        pos += 2;
+      }
+      offset++;
+    }
+    return new Blob([out], { type: 'audio/wav' });
+  }
+</script>
+</body>
+</html>
