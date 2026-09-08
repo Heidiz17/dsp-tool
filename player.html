@@ -75,6 +75,7 @@
       cursor: pointer;
       font-weight: bold;
       font-size: 0.9rem;
+      box-shadow: 0 0 10px rgba(0,242,254,0.15);
     }
     .track-name {
       margin-top: 6px;
@@ -82,6 +83,80 @@
       color: #94a3b8;
       word-break: break-all;
     }
+
+    /* 📚 無限新增切片清單樣式 */
+    .playlist-wrapper {
+      background: #090e17;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 8px;
+      margin: 10px 0 14px 0;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .playlist-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #64748b;
+      padding: 2px 6px 6px 6px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 6px;
+    }
+    .playlist-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .playlist-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      background: #131b2b;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }
+    .playlist-item:hover {
+      background: #1c273e;
+      border-color: #334155;
+    }
+    /* 🔥 播放中狀態：強烈 Neon Shadow + 下劃線 Underline Glow */
+    .playlist-item.playing {
+      background: #102338;
+      color: #00f2fe;
+      font-weight: bold;
+      border: 1px solid #00f2fe;
+      border-bottom: 3px solid #00f2fe; /* 標誌性下劃線 */
+      box-shadow: 0 0 14px rgba(0, 242, 254, 0.45); /* 立體外發光 Shadow */
+    }
+    .item-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      margin-right: 8px;
+    }
+    .btn-del-item {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      font-size: 0.85rem;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+    .btn-del-item:hover {
+      color: var(--danger);
+    }
+
     .progress-section {
       margin: 10px 0;
     }
@@ -181,9 +256,19 @@
   </div>
 
   <div class="file-box">
-    <label class="btn-file" for="mediaInput">📂 選擇影片或音檔 (MP4 / OPUS / MP3 / WAV)</label>
-    <input type="file" id="mediaInput" accept="video/*,audio/*">
-    <div id="trackName" class="track-name">未選擇檔案</div>
+    <!-- 支援 multiple 多選與無限追加 -->
+    <label class="btn-file" for="mediaInput">📂 選擇或批量新增檔案 (MP4/OPUS/MP3/WAV)</label>
+    <input type="file" id="mediaInput" accept="video/*,audio/*" multiple>
+    <div id="trackName" class="track-name">未載入檔案</div>
+  </div>
+
+  <!-- 📚 無限新增切片清單 -->
+  <div class="playlist-wrapper" id="playlistWrapper">
+    <div class="playlist-header">
+      <span>📚 已載入清單 (<span id="playlistCount">0</span>)</span>
+      <span style="font-size:0.7rem;">點擊即切換播放</span>
+    </div>
+    <ul class="playlist-list" id="playlist"></ul>
   </div>
 
   <div class="progress-section">
@@ -242,12 +327,19 @@
   let loopB = null;
   let isLooping = false;
 
+  // 清單管理變數
+  let fileList = [];
+  let currentActiveIndex = -1;
+
   const mediaInput = document.getElementById('mediaInput');
   const trackName = document.getElementById('trackName');
   const btnPlay = document.getElementById('btnPlay');
   const seekSlider = document.getElementById('seekSlider');
   const currentTimeLabel = document.getElementById('currentTime');
   const durationTimeLabel = document.getElementById('durationTime');
+
+  const playlistUl = document.getElementById('playlist');
+  const playlistCount = document.getElementById('playlistCount');
 
   const speedSlider = document.getElementById('speedSlider');
   const valSpeed = document.getElementById('valSpeed');
@@ -268,18 +360,85 @@
     return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s + "." + ms;
   }
 
+  // 📂 監聽新增檔案（支援累加、無限追加）
   mediaInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    currentFile = file;
-    trackName.textContent = file.name;
-    const fileURL = URL.createObjectURL(file);
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    files.forEach(f => fileList.push(f));
+    renderPlaylist();
+
+    // 如果未播緊歌，自動載入今次加入嘅第一隻
+    if (currentActiveIndex === -1) {
+      loadTrack(0);
+    }
+    mediaInput.value = ""; // 重設 input，方便重複揀選同一個檔
+  });
+
+  // 渲染清單（帶發光 Shadow 與 Underline）
+  function renderPlaylist() {
+    playlistUl.innerHTML = "";
+    playlistCount.textContent = fileList.length;
+
+    fileList.forEach((file, idx) => {
+      const li = document.createElement('li');
+      li.className = 'playlist-item' + (idx === currentActiveIndex ? ' playing' : '');
+      
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'item-title';
+      titleSpan.textContent = `${idx === currentActiveIndex ? '🎵 ' : ''}${idx + 1}. ${file.name}`;
+      
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-del-item';
+      delBtn.innerHTML = '&times;';
+      delBtn.title = "移除";
+      delBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        removeTrack(idx);
+      };
+
+      li.appendChild(titleSpan);
+      li.appendChild(delBtn);
+
+      li.onclick = () => loadTrack(idx);
+      playlistUl.appendChild(li);
+    });
+  }
+
+  // 踢入去播放
+  function loadTrack(idx) {
+    if (!fileList[idx]) return;
+    currentActiveIndex = idx;
+    currentFile = fileList[idx];
+    trackName.textContent = `▶ 正在處理: ${currentFile.name}`;
+
+    const fileURL = URL.createObjectURL(currentFile);
     player.src = fileURL;
     player.preservesPitch = true;
     player.load();
     btnPlay.textContent = "▶ 播放";
     clearLoop();
-  });
+    renderPlaylist();
+  }
+
+  // 移除項目
+  function removeTrack(idx) {
+    fileList.splice(idx, 1);
+    if (currentActiveIndex === idx) {
+      if (fileList.length > 0) {
+        loadTrack(Math.max(0, idx - 1));
+      } else {
+        currentActiveIndex = -1;
+        currentFile = null;
+        player.src = "";
+        trackName.textContent = "未載入檔案";
+        clearLoop();
+      }
+    } else if (currentActiveIndex > idx) {
+      currentActiveIndex--;
+    }
+    renderPlaylist();
+  }
 
   player.addEventListener('loadedmetadata', () => {
     seekSlider.max = player.duration;
@@ -437,19 +596,11 @@
     function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
     function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
 
-    setUint32(0x46464952); // "RIFF"
-    setUint32(length - 8);
-    setUint32(0x45564157); // "WAVE"
-    setUint32(0x20746d66); // "fmt "
-    setUint32(16);          // 16 bit
-    setUint16(1);           // PCM
-    setUint16(numOfChan);
-    setUint32(buffer.sampleRate);
-    setUint32(buffer.sampleRate * 2 * numOfChan);
-    setUint16(numOfChan * 2);
-    setUint16(16);
-    setUint32(0x61746164); // "data"
-    setUint32(length - pos - 4);
+    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+    setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+    setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+    setUint16(numOfChan * 2); setUint16(16);
+    setUint32(0x61746164); setUint32(length - pos - 4);
 
     const channels = [];
     for (let i = 0; i < buffer.numberOfChannels; i++) {
