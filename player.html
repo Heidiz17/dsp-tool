@@ -135,7 +135,7 @@
       color: #00f2fe;
       font-weight: bold;
       border: 1px solid #00f2fe;
-      border-bottom: 3px solid #00f2fe; /* 標誌性下劃線 */
+      border-bottom: 3px solid #00f2fe; /* 標誌性發光底線 */
       box-shadow: 0 0 14px rgba(0, 242, 254, 0.45); /* 立體外發光 Shadow */
     }
     .item-title {
@@ -266,7 +266,7 @@
   <div class="playlist-wrapper" id="playlistWrapper">
     <div class="playlist-header">
       <span>📚 已載入清單 (<span id="playlistCount">0</span>)</span>
-      <span style="font-size:0.7rem;">點擊即切換播放</span>
+      <span style="font-size:0.7rem; color:var(--accent);">自動順播中 ➔</span>
     </div>
     <ul class="playlist-list" id="playlist"></ul>
   </div>
@@ -368,9 +368,9 @@
     files.forEach(f => fileList.push(f));
     renderPlaylist();
 
-    // 如果未播緊歌，自動載入今次加入嘅第一隻
+    // 如果未有播緊歌，自動載入今次加入嘅第一隻
     if (currentActiveIndex === -1) {
-      loadTrack(0);
+      loadTrack(0, false);
     }
     mediaInput.value = ""; // 重設 input，方便重複揀選同一個檔
   });
@@ -400,13 +400,13 @@
       li.appendChild(titleSpan);
       li.appendChild(delBtn);
 
-      li.onclick = () => loadTrack(idx);
+      li.onclick = () => loadTrack(idx, true);
       playlistUl.appendChild(li);
     });
   }
 
-  // 踢入去播放
-  function loadTrack(idx) {
+  // 踢入去播放（支援自動連續開播）
+  function loadTrack(idx, autoPlay = true) {
     if (!fileList[idx]) return;
     currentActiveIndex = idx;
     currentFile = fileList[idx];
@@ -416,7 +416,17 @@
     player.src = fileURL;
     player.preservesPitch = true;
     player.load();
-    btnPlay.textContent = "▶ 播放";
+    
+    if (autoPlay) {
+      player.play().then(() => {
+        btnPlay.textContent = "⏸ 暫停";
+      }).catch(() => {
+        btnPlay.textContent = "▶ 播放";
+      });
+    } else {
+      btnPlay.textContent = "▶ 播放";
+    }
+
     clearLoop();
     renderPlaylist();
   }
@@ -426,7 +436,7 @@
     fileList.splice(idx, 1);
     if (currentActiveIndex === idx) {
       if (fileList.length > 0) {
-        loadTrack(Math.max(0, idx - 1));
+        loadTrack(Math.max(0, idx - 1), false);
       } else {
         currentActiveIndex = -1;
         currentFile = null;
@@ -449,8 +459,22 @@
     seekSlider.value = player.currentTime;
     currentTimeLabel.textContent = fmt(player.currentTime);
 
+    // AB 點循環控制
     if (isLooping && loopB !== null && player.currentTime >= loopB) {
       player.currentTime = loopA || 0;
+    }
+  });
+
+  // 🎵 順住播核心：播完一隻自動跳下一隻！
+  player.addEventListener('ended', () => {
+    if (isLooping && loopB !== null) return; // 開緊 AB 點循環採樣嗰陣唔跳歌
+
+    if (fileList.length > 0) {
+      let nextIndex = currentActiveIndex + 1;
+      if (nextIndex >= fileList.length) {
+        nextIndex = 0; // 播到最後一首自動循環返第一首
+      }
+      loadTrack(nextIndex, true);
     }
   });
 
@@ -596,11 +620,19 @@
     function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
     function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
 
-    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
-    setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
-    setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
-    setUint16(numOfChan * 2); setUint16(16);
-    setUint32(0x61746164); setUint32(length - pos - 4);
+    setUint32(0x46464952); // "RIFF"
+    setUint32(length - 8);
+    setUint32(0x45564157); // "WAVE"
+    setUint32(0x20746d66); // "fmt "
+    setUint32(16);          // 16 bit
+    setUint16(1);           // PCM
+    setUint16(numOfChan);
+    setUint32(buffer.sampleRate);
+    setUint32(buffer.sampleRate * 2 * numOfChan);
+    setUint16(numOfChan * 2);
+    setUint16(16);
+    setUint32(0x61746164); // "data"
+    setUint32(length - pos - 4);
 
     const channels = [];
     for (let i = 0; i < buffer.numberOfChannels; i++) {
