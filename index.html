@@ -3,86 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcatdia - DSP 四合一洗底 & 烘焙實驗室</title>
+    <title>Arcatdia - DSP 高級客製實驗室</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        body { background: #080b12; color: #fff; padding: 20px; display: flex; justify-content: center; }
-        .box { width: 100%; max-width: 480px; background: rgba(16, 24, 40, 0.95); border: 1px solid #00ffcc; border-radius: 14px; padding: 20px; box-shadow: 0 0 20px rgba(0,255,204,0.15); }
-        h2 { color: #00ffcc; font-size: 20px; margin-bottom: 15px; text-align: center; }
-        .group { margin-bottom: 18px; }
-        label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; }
-        input[type="file"] { width: 100%; padding: 8px; background: #030508; border: 1px dashed #00ffcc; border-radius: 8px; color: #fff; font-size: 12px; }
-        input[type="range"] { width: 100%; accent-color: #00ffcc; }
-        .val-disp { float: right; color: #ffcc00; font-weight: bold; }
-        .status-box { background: #030508; border: 1px solid #333; border-radius: 8px; padding: 10px; font-size: 12px; color: #00ffcc; margin-bottom: 15px; line-height: 1.6; }
+        body { background: #060910; color: #fff; padding: 15px; display: flex; justify-content: center; }
+        .box { width: 100%; max-width: 500px; background: rgba(14, 20, 32, 0.96); border: 1px solid #00f2fe; border-radius: 14px; padding: 20px; box-shadow: 0 0 25px rgba(0,242,254,0.18); }
+        h2 { color: #00f2fe; font-size: 19px; margin-bottom: 12px; text-align: center; letter-spacing: 1px; }
+        .group { background: #090e18; border: 1px solid #1a273e; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+        .group-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        label { font-size: 12px; color: #8fa0b5; font-weight: bold; }
+        input[type="file"] { width: 100%; padding: 8px; background: #030508; border: 1px dashed #00f2fe; border-radius: 8px; color: #fff; font-size: 12px; }
+        input[type="range"] { width: 100%; accent-color: #00f2fe; margin-top: 4px; }
+        .val-disp { color: #ffcc00; font-weight: bold; font-size: 12px; }
+        .toggle-label { font-size: 11px; color: #00ffcc; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .status-box { background: #030508; border: 1px solid #233554; border-radius: 8px; padding: 10px; font-size: 12px; color: #00f2fe; margin-bottom: 15px; line-height: 1.5; }
+        
+        .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        .btn-preset-clean { background: #1f2d40; color: #00f2fe; border: 1px solid #00f2fe; padding: 10px; font-size: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-preset-recom { background: linear-gradient(90deg, #00b4db, #0083b0); color: #fff; border: none; padding: 10px; font-size: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        button { padding: 12px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; }
+        button { padding: 12px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; transition: 0.2s; }
         .btn-play { background: #ffaa00; color: #000; }
-        .btn-bake { background: #00ffcc; color: #000; grid-column: span 2; font-size: 14px; }
-        .btn-auto-4 { background: linear-gradient(90deg, #ffcc00, #ff0055); color: #fff; grid-column: span 2; font-size: 14px; box-shadow: 0 0 10px rgba(255,0,85,0.4); }
-        textarea { width: 100%; height: 80px; margin-top: 15px; background: #030508; border: 1px solid #444; border-radius: 8px; color: #00ffcc; padding: 8px; font-size: 11px; word-break: break-all; resize: none; }
+        .btn-bake { background: #00f2fe; color: #000; grid-column: span 2; font-size: 14px; box-shadow: 0 0 12px rgba(0,242,254,0.3); }
+        textarea { width: 100%; height: 75px; margin-top: 15px; background: #030508; border: 1px solid #1a273e; border-radius: 8px; color: #00f2fe; padding: 8px; font-size: 11px; word-break: break-all; resize: none; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h2>🎛️ Arcatdia DSP 四合一洗底實驗室</h2>
+    <h2>🎛️ Arcatdia DSP 客製超頻實驗室</h2>
 
-    <div class="group">
-        <label>1. 選擇你的原始音檔 (MP3 / WAV)：</label>
-        <input type="file" id="audioInput" accept="audio/*">
+    <div class="group" style="border-color:#00f2fe;">
+        <label>1. 選擇原始音檔 (WAV / MP3)：</label>
+        <input type="file" id="audioInput" accept="audio/*" style="margin-top:6px;">
     </div>
 
     <div class="status-box" id="trimStatus">
-        等待選擇檔案...（載入後自動切除頭部靜音空氣音）
+        等待選擇檔案...
     </div>
 
-    <div class="group">
-        <label>2. Pitch 速度/音調微調：<span class="val-disp" id="pitchVal">1.2x (升Key)</span></label>
-        <input type="range" id="pitchSlider" min="0.5" max="3.0" step="0.05" value="1.2">
+    <!-- 頂部一掣切換 Preset -->
+    <div class="preset-grid">
+        <button class="btn-preset-clean" onclick="setCleanOriginal()">⭕ 全原汁原味 (純淨原版)</button>
+        <button class="btn-preset-recom" onclick="setRecommendedPreset()">⚡ 寶寶洗底 Preset</button>
     </div>
 
+    <!-- 模組 1：Pitch 音調 -->
     <div class="group">
-        <label>3. 裁切尾音長度 (Trim Decay)：<span class="val-disp" id="decayVal">0.075 秒</span></label>
-        <input type="range" id="decaySlider" min="0.03" max="0.15" step="0.005" value="0.075">
+        <div class="group-header">
+            <label>⚡ 模組一：Pitch 音調微調</label>
+            <span class="val-disp" id="pitchVal">1.00x (原速原音)</span>
+        </div>
+        <input type="range" id="pitchSlider" min="0.5" max="3.0" step="0.02" value="1.00">
     </div>
 
+    <!-- 模組 2：尾音裁切 -->
     <div class="group">
-        <label>4. 預覽音量 (Volume)：<span class="val-disp" id="volVal">100%</span></label>
+        <div class="group-header">
+            <label>✂️ 模組二：裁切尾音 (Trim Tail)</label>
+            <span class="val-disp" id="cutVal">0.00 秒 (原汁原味完整尾音)</span>
+        </div>
+        <input type="range" id="cutSlider" min="0.0" max="0.15" step="0.005" value="0.0">
+    </div>
+
+    <!-- 模組 3：High-Pass 濾波器 -->
+    <div class="group">
+        <div class="group-header">
+            <label>🌊 模組三：High-Pass 去悶音低頻</label>
+            <label class="toggle-label"><input type="checkbox" id="hpToggle"> 開啟模組</label>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:4px;">
+            <span>切除頻率：</span><span class="val-disp" id="hpVal">80 Hz</span>
+        </div>
+        <input type="range" id="hpSlider" min="30" max="300" step="5" value="80">
+    </div>
+
+    <!-- 模組 4：Peaking 金屬感濾波器 -->
+    <div class="group">
+        <div class="group-header">
+            <label>✨ 模組四：Peaking 金屬敲擊光澤</label>
+            <label class="toggle-label"><input type="checkbox" id="peakToggle"> 開啟模組</label>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:4px;">
+            <span>提亮頻率：</span><span class="val-disp" id="peakFreqVal">3500 Hz</span>
+        </div>
+        <input type="range" id="peakFreqSlider" min="2000" max="6000" step="100" value="3500">
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:#aaa; margin-top:8px;">
+            <span>增益強度：</span><span class="val-disp" id="peakGainVal">+0.0 dB</span>
+        </div>
+        <input type="range" id="peakGainSlider" min="0.0" max="8.0" step="0.5" value="0.0">
+    </div>
+
+    <!-- 監聽音量 -->
+    <div class="group">
+        <div class="group-header">
+            <label>🔊 監聽音量</label>
+            <span class="val-disp" id="volVal">100%</span>
+        </div>
         <input type="range" id="volSlider" min="0.1" max="2.0" step="0.1" value="1.0">
     </div>
 
     <div class="btn-grid">
-        <button class="btn-play" onclick="testPlay()">🔊 試聽單發打擊</button>
+        <button class="btn-play" onclick="testPlay()">🔊 試聽手動調音</button>
         <button class="btn-play" style="background:#aa00ff; color:#fff;" onclick="testContinuousPlay()">🥁 4連打手感</button>
-        <button class="btn-auto-4" onclick="runArcatdiaAutoBake()">⚡ 一掣四招：Arcatdia 原創洗底導出 (WAV+Base64)</button>
-        <button class="btn-bake" onclick="bakeAndExport()">✨ 僅手動烘焙 Base64</button>
+        <button class="btn-bake" onclick="bakeAndExport()">💾 導出客製音訊 (WAV + 複製 Base64)</button>
     </div>
 
-    <textarea id="outputBase64" placeholder="處理完成後，這裡會顯示 Base64 並自動複製到剪貼簿..."></textarea>
+    <textarea id="outputBase64" placeholder="導出後 Base64 顯示於此並已自動複製..."></textarea>
 </div>
-
 <script>
 let actx = null;
 let rawBuffer = null;
-let currentFileName = "sound";
+let currentFileName = "custom_sound";
 
 function getAudioContext() {
     if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
     if (actx.state === 'suspended') actx.resume();
     return actx;
-}
-
-// 第一招底層：抓取真正的起始點（砍掉前面空氣靜音）
-function findStartFrame(buffer) {
-    const threshold = 0.015;
-    const channelData = buffer.getChannelData(0);
-    for (let i = 0; i < channelData.length; i++) {
-        if (Math.abs(channelData[i]) > threshold) {
-            return Math.max(0, i - 40); // 預留 40 frames 防爆音
-        }
-    }
-    return 0;
 }
 
 document.getElementById('audioInput').addEventListener('change', function(e) {
@@ -94,24 +132,41 @@ document.getElementById('audioInput').addEventListener('change', function(e) {
         const ctx = getAudioContext();
         ctx.decodeAudioData(evt.target.result, function(buffer) {
             rawBuffer = buffer;
-            const start = findStartFrame(buffer);
             document.getElementById('trimStatus').innerHTML = 
                 `⚡ <b>音訊載入成功！</b><br>` +
                 `📁 檔案：${file.name}<br>` +
-                `✂️ 檢測到前頭空氣音：${(start / buffer.sampleRate).toFixed(4)} 秒（烘焙時自動削平）`;
+                `⏱️ 原始長度：${buffer.duration.toFixed(3)} 秒`;
         });
     };
     reader.readAsArrayBuffer(file);
 });
 
+// UI 滑桿監聽
 const pitchSlider = document.getElementById('pitchSlider');
 pitchSlider.addEventListener('input', function() {
-    document.getElementById('pitchVal').innerText = this.value + "x " + (this.value > 1.0 ? "(升Key)" : "(降Key)");
+    const val = parseFloat(this.value);
+    document.getElementById('pitchVal').innerText = val.toFixed(2) + "x " + (val === 1.0 ? "(原音)" : (val > 1.0 ? "(升Key)" : "(降Key)"));
 });
 
-const decaySlider = document.getElementById('decaySlider');
-decaySlider.addEventListener('input', function() {
-    document.getElementById('decayVal').innerText = parseFloat(this.value).toFixed(3) + " 秒";
+const cutSlider = document.getElementById('cutSlider');
+cutSlider.addEventListener('input', function() {
+    const v = parseFloat(this.value);
+    document.getElementById('cutVal').innerText = v === 0 ? "0.00 秒 (原汁原味完整尾音)" : `切走最後 ${v.toFixed(3)} 秒`;
+});
+
+const hpSlider = document.getElementById('hpSlider');
+hpSlider.addEventListener('input', function() {
+    document.getElementById('hpVal').innerText = this.value + " Hz";
+});
+
+const peakFreqSlider = document.getElementById('peakFreqSlider');
+peakFreqSlider.addEventListener('input', function() {
+    document.getElementById('peakFreqVal').innerText = this.value + " Hz";
+});
+
+const peakGainSlider = document.getElementById('peakGainSlider');
+peakGainSlider.addEventListener('input', function() {
+    document.getElementById('peakGainVal').innerText = "+" + parseFloat(this.value).toFixed(1) + " dB";
 });
 
 const volSlider = document.getElementById('volSlider');
@@ -119,101 +174,148 @@ volSlider.addEventListener('input', function() {
     document.getElementById('volVal').innerText = Math.round(this.value * 100) + "%";
 });
 
-// 試聽（實時套用 Pitch + 雙濾波效果）
+// ⭕ 模式一：純淨原版（全部歸零、Filter 全關、原汁原味）
+function setCleanOriginal() {
+    pitchSlider.value = 1.00;
+    document.getElementById('pitchVal').innerText = "1.00x (原音)";
+
+    cutSlider.value = 0.0;
+    document.getElementById('cutVal').innerText = "0.00 秒 (原汁原味完整尾音)";
+
+    document.getElementById('hpToggle').checked = false;
+    hpSlider.value = 80;
+    document.getElementById('hpVal').innerText = "80 Hz";
+
+    document.getElementById('peakToggle').checked = false;
+    peakFreqSlider.value = 3500;
+    document.getElementById('peakFreqVal').innerText = "3500 Hz";
+    peakGainSlider.value = 0.0;
+    document.getElementById('peakGainVal').innerText = "+0.0 dB";
+}
+
+// ⚡ 模式二：寶寶推薦洗底 Preset（改 Pitch + 開濾波）
+function setRecommendedPreset() {
+    pitchSlider.value = 1.20;
+    document.getElementById('pitchVal').innerText = "1.20x (升Key推薦)";
+
+    cutSlider.value = 0.0; // 尾音保證係 0，絕不強制剁尾
+    document.getElementById('cutVal').innerText = "0.00 秒 (原汁原味完整尾音)";
+
+    document.getElementById('hpToggle').checked = true;
+    hpSlider.value = 80;
+    document.getElementById('hpVal').innerText = "80 Hz";
+
+    document.getElementById('peakToggle').checked = true;
+    peakFreqSlider.value = 3500;
+    document.getElementById('peakFreqVal').innerText = "3500 Hz";
+    peakGainSlider.value = 3.0;
+    document.getElementById('peakGainVal').innerText = "+3.0 dB";
+}
+
+// 試聽
 function testPlay(delay = 0) {
     if (!rawBuffer) { alert("請先選擇音檔！"); return; }
     const ctx = getAudioContext();
-    const startFrame = findStartFrame(rawBuffer);
-    const startOffset = startFrame / rawBuffer.sampleRate;
-
     const src = ctx.createBufferSource();
     src.buffer = rawBuffer;
-    src.playbackRate.value = parseFloat(pitchSlider.value);
 
-    // 實時濾波器鏈條
-    const highPass = ctx.createBiquadFilter();
-    highPass.type = 'highpass';
-    highPass.frequency.value = 100; // 去悶音低頻
+    const pitch = parseFloat(pitchSlider.value);
+    src.playbackRate.value = pitch;
 
-    const peakFilter = ctx.createBiquadFilter();
-    peakFilter.type = 'peaking';
-    peakFilter.frequency.value = 3500; // 提亮打擊金屬感
-    peakFilter.gain.value = 3.0;
+    let lastNode = src;
+
+    if (document.getElementById('hpToggle').checked) {
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = parseFloat(hpSlider.value);
+        lastNode.connect(hp);
+        lastNode = hp;
+    }
+
+    if (document.getElementById('peakToggle').checked) {
+        const peak = ctx.createBiquadFilter();
+        peak.type = 'peaking';
+        peak.frequency.value = parseFloat(peakFreqSlider.value);
+        peak.gain.value = parseFloat(peakGainSlider.value);
+        lastNode.connect(peak);
+        lastNode = peak;
+    }
 
     const gain = ctx.createGain();
     gain.gain.value = parseFloat(volSlider.value);
-
-    src.connect(highPass);
-    highPass.connect(peakFilter);
-    peakFilter.connect(gain);
+    lastNode.connect(gain);
     gain.connect(ctx.destination);
 
     const now = ctx.currentTime + delay;
-    src.start(now, startOffset);
-    // 依據 Decay Slider 強制收刀
-    const maxDur = parseFloat(decaySlider.value) / parseFloat(pitchSlider.value);
-    src.stop(now + maxDur);
+    src.start(now);
+
+    const cutDuration = parseFloat(cutSlider.value);
+    if (cutDuration > 0) {
+        const finalDuration = Math.max(0.02, (rawBuffer.duration / pitch) - cutDuration);
+        src.stop(now + finalDuration);
+    }
 }
 
 function testContinuousPlay() {
-    for (let i = 0; i < 4; i++) testPlay(i * 0.11);
+    for (let i = 0; i < 4; i++) testPlay(i * 0.12);
 }
 
-// ⚡ 核心招式：一掣四連擊洗底導出（Pitch + 裁尾淡出 + 濾波調色 + 自動存檔）
-async function runArcatdiaAutoBake() {
+// 烘焙導出
+async function bakeAndExport() {
     if (!rawBuffer) { alert("請先選擇音檔！"); return; }
 
     const pitch = parseFloat(pitchSlider.value);
-    const decayTime = parseFloat(decaySlider.value);
+    const cutDuration = parseFloat(cutSlider.value);
     const sampleRate = rawBuffer.sampleRate;
-    const startFrame = findStartFrame(rawBuffer);
 
-    // 1. 計算切尾後的新長度
-    const totalFrames = Math.ceil(decayTime * sampleRate);
-    const offlineCtx = new OfflineAudioContext(1, totalFrames, sampleRate);
+    let finalDuration = rawBuffer.duration / pitch;
+    if (cutDuration > 0) {
+        finalDuration = Math.max(0.02, finalDuration - cutDuration);
+    }
+    const frameCount = Math.ceil(finalDuration * sampleRate);
 
-    // 2. 建立音源並套用 Pitch
+    const offlineCtx = new OfflineAudioContext(1, frameCount, sampleRate);
     const src = offlineCtx.createBufferSource();
     src.buffer = rawBuffer;
     src.playbackRate.value = pitch;
 
-    // 3. 濾波器：切走 100Hz 雜音 + 3.5kHz 增益
-    const highPass = offlineCtx.createBiquadFilter();
-    highPass.type = 'highpass';
-    highPass.frequency.value = 100;
+    let lastNode = src;
 
-    const peakFilter = offlineCtx.createBiquadFilter();
-    peakFilter.type = 'peaking';
-    peakFilter.frequency.value = 3500;
-    peakFilter.gain.value = 3.5;
+    if (document.getElementById('hpToggle').checked) {
+        const hp = offlineCtx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = parseFloat(hpSlider.value);
+        lastNode.connect(hp);
+        lastNode = hp;
+    }
 
-    // 4. 尾端極速淡出（防爆音）
+    if (document.getElementById('peakToggle').checked) {
+        const peak = offlineCtx.createBiquadFilter();
+        peak.type = 'peaking';
+        peak.frequency.value = parseFloat(peakFreqSlider.value);
+        peak.gain.value = parseFloat(peakGainSlider.value);
+        lastNode.connect(peak);
+        lastNode = peak;
+    }
+
+    // 尾部淡出（最後 10ms，純粹防爆音）
     const gainNode = offlineCtx.createGain();
-    const fadeFrames = Math.floor(sampleRate * 0.015); // 最後 15ms 淡出
-    const fadeStartTime = (totalFrames - fadeFrames) / sampleRate;
-    gainNode.gain.setValueAtTime(1.0, fadeStartTime);
-    gainNode.gain.linearRampToValueAtTime(0.001, totalFrames / sampleRate);
+    const fadeOutDur = 0.01;
+    gainNode.gain.setValueAtTime(1.0, finalDuration - fadeOutDur);
+    gainNode.gain.linearRampToValueAtTime(0.001, finalDuration);
 
-    // 串接管線
-    src.connect(highPass);
-    highPass.connect(peakFilter);
-    peakFilter.connect(gainNode);
+    lastNode.connect(gainNode);
     gainNode.connect(offlineCtx.destination);
 
-    // 開始渲染
-    src.start(0, startFrame / sampleRate);
+    src.start(0);
     const rendered = await offlineCtx.startRendering();
 
-    // 轉 WAV Blob
     const wavBlob = bufferToWaveBlob(rendered);
-
-    // 自動下載洗底後的 WAV 檔
     const downloadLink = document.createElement('a');
     downloadLink.href = URL.createObjectURL(wavBlob);
     downloadLink.download = `arcatdia_${currentFileName}.wav`;
     downloadLink.click();
 
-    // 同步轉 Base64 並複製
     const reader = new FileReader();
     reader.onloadend = function() {
         const base64data = reader.result;
@@ -221,13 +323,9 @@ async function runArcatdiaAutoBake() {
         output.value = base64data;
         output.select();
         navigator.clipboard.writeText(base64data);
-        alert(`🎉 洗底成功！\n1. 已下載：arcatdia_${currentFileName}.wav\n2. 原創波形已生成 (Pitch: ${pitch}x, Decay: ${decayTime}s)\n3. Base64 已自動複製！`);
+        alert(`🎉 導出成功！\n- Pitch: ${pitch.toFixed(2)}x\n- 下載完成：arcatdia_${currentFileName}.wav\n- Base64 已自動複製！`);
     };
     reader.readAsDataURL(wavBlob);
-}
-
-function bakeAndExport() {
-    runArcatdiaAutoBake();
 }
 
 function bufferToWaveBlob(abuffer) {
