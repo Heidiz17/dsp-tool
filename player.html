@@ -6,6 +6,8 @@
   <title>Tool 4: 影音播放與切片機 (Player & Cutter Pro)</title>
   
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+  <!-- 純前端背景秒轉 WebM 核心引擎 -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 
   <style>
     :root {
@@ -256,12 +258,22 @@
       border-radius: 8px;
       box-shadow: 0 0 12px rgba(208, 0, 255, 0.4);
     }
+    .btn-cut-webm {
+      width: 100%;
+      margin-top: 8px;
+      background: linear-gradient(90deg, #00f2fe, #4facfe);
+      color: #000;
+      font-weight: bold;
+      font-size: 0.95rem;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+    }
   </style>
 </head>
 
-
-  <body>
-
+<body>
 <div class="container">
   <h2>🎬 影音播放與切片一體機 (Pro)</h2>
 
@@ -320,7 +332,7 @@
   <div class="section-box">
     <div class="slider-label">
       <span>✂️ AB 採樣剪輯區間</span>
-      <span id="loopStatus" style="color:var(--accent);">未設定</span>
+      <span id="loopStatus" style="color:var(--accent);">未設定 (預設全片轉檔)</span>
     </div>
     <div class="loop-controls">
       <button id="btnSetA">📍 設為 A 點</button>
@@ -329,11 +341,12 @@
     </div>
     <button id="btnExportWav" class="btn-cut">💾 導出 AB 區間無損音效 (.wav)</button>
     <button id="btnExportMp3" class="btn-cut-mp3">⚡ 導出 AB 區間輕量音效 (.mp3)</button>
+    <button id="btnExportWebm" class="btn-cut-webm">🚀 背景極速轉出 WebM (.webm)</button>
   </div>
 </div>
 
 
-    <script>
+  <script>
   const player = document.getElementById('mediaPlayer');
   let currentFile = null;
   let loopA = null;
@@ -364,6 +377,18 @@
   const loopStatus = document.getElementById('loopStatus');
   const btnExportWav = document.getElementById('btnExportWav');
   const btnExportMp3 = document.getElementById('btnExportMp3');
+  const btnExportWebm = document.getElementById('btnExportWebm');
+
+  let ffmpegInstance = null;
+
+  async function getFFmpeg() {
+    if (!ffmpegInstance) {
+      const { createFFmpeg } = FFmpeg;
+      ffmpegInstance = createFFmpeg({ log: false });
+      await ffmpegInstance.load();
+    }
+    return ffmpegInstance;
+  }
 
   function fmt(sec) {
     if (isNaN(sec)) return "00:00.0";
@@ -534,12 +559,13 @@
     btnSetB.classList.remove('btn-active');
     btnSetA.textContent = "📍 設為 A 點";
     btnSetB.textContent = "🏁 設為 B 點";
-    loopStatus.textContent = "未設定";
+    loopStatus.textContent = "未設定 (預設全片轉檔)";
   }
 
   btnClearLoop.addEventListener('click', clearLoop);
 
-  async function getCutBuffer() {
+
+      async function getCutBuffer() {
     if (!currentFile) { alert("請先選擇檔案！"); return null; }
     if (loopA === null || loopB === null) { alert("請先設定 A 點同 B 點！"); return null; }
 
@@ -614,6 +640,54 @@
     } finally {
       btnExportMp3.textContent = originalText;
       btnExportMp3.disabled = false;
+    }
+  });
+
+  // 極速背景轉檔 WebM (免實時播放錄製，純內存快速壓製)
+  btnExportWebm.addEventListener('click', async () => {
+    if (!currentFile) { alert("請先載入影片！"); return; }
+    const originalText = btnExportWebm.textContent;
+    btnExportWebm.textContent = "⏳ 引擎啟動中，直接轉碼中...";
+    btnExportWebm.disabled = true;
+
+    try {
+      const ffmpeg = await getFFmpeg();
+      const { fetchFile } = FFmpeg;
+      
+      const inExt = currentFile.name.split('.').pop() || 'mp4';
+      const inName = `input.${inExt}`;
+      const outName = 'output.webm';
+
+      ffmpeg.FS('writeFile', inName, await fetchFile(currentFile));
+
+      const args = [];
+      // 若設有 AB 點則快速精確切片，若無則全片轉換
+      if (loopA !== null && loopB !== null) {
+        args.push('-ss', `${loopA}`, '-to', `${loopB}`);
+      }
+      args.push('-i', inName, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '30', '-c:a', 'libopus', outName);
+
+      await ffmpeg.run(...args);
+
+      const data = ffmpeg.FS('readFile', outName);
+      const webmBlob = new Blob([data.buffer], { type: 'video/webm' });
+      const downloadUrl = URL.createObjectURL(webmBlob);
+
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const baseName = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || 'video';
+      a.download = `${baseName}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      ffmpeg.FS('unlink', inName);
+      ffmpeg.FS('unlink', outName);
+    } catch (err) {
+      alert("WebM 轉碼失敗: " + err.message);
+    } finally {
+      btnExportWebm.textContent = originalText;
+      btnExportWebm.disabled = false;
     }
   });
 
