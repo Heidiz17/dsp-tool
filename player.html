@@ -210,6 +210,26 @@
       margin-top: 10px;
       border: 1px solid #1e293b;
     }
+    .drawer-btn {
+      width: 100%;
+      background: #101c30;
+      border: 1px dashed #38bdf8;
+      color: #38bdf8;
+      font-size: 0.85rem;
+      font-weight: bold;
+      padding: 9px;
+      border-radius: 8px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+    .drawer-content {
+      display: none;
+      background: #0a1120;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 8px;
+    }
     .slider-row {
       margin: 6px 0;
     }
@@ -234,7 +254,7 @@
     }
     .btn-cut {
       width: 100%;
-      margin-top: 10px;
+      margin-top: 8px;
       background: var(--success);
       color: #000;
       font-weight: bold;
@@ -258,15 +278,15 @@
     }
     .btn-cut-webm {
       width: 100%;
-      margin-top: 8px;
+      margin-top: 10px;
       background: linear-gradient(90deg, #00f2fe, #4facfe);
       color: #000;
-      font-weight: bold;
-      font-size: 0.95rem;
+      font-weight: 900;
+      font-size: 1.05rem;
       border: none;
-      padding: 12px;
+      padding: 14px;
       border-radius: 8px;
-      box-shadow: 0 0 12px rgba(0, 242, 254, 0.4);
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
     }
   </style>
 </head>
@@ -310,7 +330,15 @@
     <button id="btnFwd5">⏩ +5s</button>
   </div>
 
-  <div class="section-box">
+  <!-- 🚀 主輸出操作區（最顯眼、一鍵直出、唔會誤觸） -->
+  <button id="btnExportWebm" class="btn-cut-webm">🚀 原生極速轉出 WebM (.webm)</button>
+
+  <!-- 🗄️ 暗掣保險櫃抽屜（鎖死 Speed、Pitch、剪輯，防誤觸） -->
+  <button id="btnToggleDrawer" class="drawer-btn" onclick="toggleDrawer()">
+    🗄️ 展開高級參數保險櫃 (變速/音調/AB剪輯/音效導出) ▼
+  </button>
+
+  <div id="drawerContent" class="drawer-content">
     <div class="slider-row">
       <div class="slider-label">
         <span>變速 (Speed) - 保持音調</span>
@@ -325,9 +353,9 @@
       </div>
       <input type="range" id="pitchSlider" min="-6" max="6" step="1" value="0">
     </div>
-  </div>
 
-  <div class="section-box">
+    <hr style="border:0; border-top:1px solid #1e293b; margin:10px 0;">
+
     <div class="slider-label">
       <span>✂️ AB 採樣剪輯區間</span>
       <span id="loopStatus" style="color:var(--accent);">未設定 (預設全片轉檔)</span>
@@ -339,7 +367,6 @@
     </div>
     <button id="btnExportWav" class="btn-cut">💾 導出 AB 區間無損音效 (.wav)</button>
     <button id="btnExportMp3" class="btn-cut-mp3">⚡ 導出 AB 區間輕量音效 (.mp3)</button>
-    <button id="btnExportWebm" class="btn-cut-webm">🚀 原生極速轉出 WebM (.webm)</button>
   </div>
 </div>
 
@@ -376,6 +403,19 @@
   const btnExportWav = document.getElementById('btnExportWav');
   const btnExportMp3 = document.getElementById('btnExportMp3');
   const btnExportWebm = document.getElementById('btnExportWebm');
+
+  // 🗄️ 控制抽屜展開與收起（平時鎖死防手殘誤觸）
+  function toggleDrawer() {
+    const drawer = document.getElementById('drawerContent');
+    const btn = document.getElementById('btnToggleDrawer');
+    if (drawer.style.display === 'block') {
+      drawer.style.display = 'none';
+      btn.textContent = "🗄️ 展開高級參數保險櫃 (變速/音調/AB剪輯/音效導出) ▼";
+    } else {
+      drawer.style.display = 'block';
+      btn.textContent = "🔒 鎖定並收起高級保險櫃 ▲";
+    }
+  }
 
   function fmt(sec) {
     if (isNaN(sec)) return "00:00.0";
@@ -630,12 +670,12 @@
     }
   });
 
-  // 原生硬件極速轉 WebM (零外部依賴、避開 SharedArrayBuffer 與 proxy_main 限制)
+  // 🚀 原生硬件極速轉 WebM（鎖死 1.0x 原速等時幀率，徹底消除抽搐停頓）
   btnExportWebm.addEventListener('click', async () => {
     if (!currentFile) { alert("請先載入影片！"); return; }
     
     const originalText = btnExportWebm.textContent;
-    btnExportWebm.textContent = "⏳ 原生硬件極速轉碼中...";
+    btnExportWebm.textContent = "⏳ 原生硬件壓製順滑 WebM 中...";
     btnExportWebm.disabled = true;
 
     try {
@@ -652,15 +692,16 @@
       const end = (loopB !== null && loopB > start) ? loopB : tempVideo.duration;
 
       tempVideo.currentTime = start;
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 200));
 
-      const stream = tempVideo.captureStream ? tempVideo.captureStream() : tempVideo.mozCaptureStream();
+      const stream = tempVideo.captureStream ? tempVideo.captureStream(30) : tempVideo.mozCaptureStream(30);
       
       let mime = 'video/webm;codecs=vp9';
       if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8';
       if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
 
-      const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 });
+      // 設定標準平衡碼率（1.8 Mbps），兼顧畫質與超輕量流暢解碼
+      const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 1800000 });
       const chunks = [];
 
       recorder.ondataavailable = (e) => {
@@ -683,9 +724,11 @@
         btnExportWebm.disabled = false;
       };
 
-      recorder.start();
-      // 雙倍速硬件轉錄
-      tempVideo.playbackRate = 2.0;
+      // 💡 每 100ms 切片儲存，確保時間戳均勻無斷層
+      recorder.start(100);
+      
+      // 🌟 嚴格保持 1.0x 原速播放壓製，絕不飄移時間戳！
+      tempVideo.playbackRate = 1.0;
       await tempVideo.play();
 
       const checkTime = () => {
