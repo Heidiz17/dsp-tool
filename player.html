@@ -6,8 +6,6 @@
   <title>Tool 4: 影音播放與切片機 (Player & Cutter Pro)</title>
   
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
-  <!-- 引入免 SharedArrayBuffer 限制嘅單線程 FFmpeg -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
 
   <style>
     :root {
@@ -341,7 +339,7 @@
     </div>
     <button id="btnExportWav" class="btn-cut">💾 導出 AB 區間無損音效 (.wav)</button>
     <button id="btnExportMp3" class="btn-cut-mp3">⚡ 導出 AB 區間輕量音效 (.mp3)</button>
-    <button id="btnExportWebm" class="btn-cut-webm">🚀 背景極速轉出 WebM (.webm)</button>
+    <button id="btnExportWebm" class="btn-cut-webm">🚀 原生極速轉出 WebM (.webm)</button>
   </div>
 </div>
 
@@ -378,8 +376,6 @@
   const btnExportWav = document.getElementById('btnExportWav');
   const btnExportMp3 = document.getElementById('btnExportMp3');
   const btnExportWebm = document.getElementById('btnExportWebm');
-
-  let ffmpegInstance = null;
 
   function fmt(sec) {
     if (isNaN(sec)) return "00:00.0";
@@ -634,56 +630,75 @@
     }
   });
 
-  // 免 SharedArrayBuffer 限制嘅 WebM 背景轉碼核心
+  // 原生硬件極速轉 WebM (零外部依賴、避開 SharedArrayBuffer 與 proxy_main 限制)
   btnExportWebm.addEventListener('click', async () => {
     if (!currentFile) { alert("請先載入影片！"); return; }
+    
     const originalText = btnExportWebm.textContent;
-    btnExportWebm.textContent = "⏳ 載入免限制轉碼引擎...";
+    btnExportWebm.textContent = "⏳ 原生硬件極速轉碼中...";
     btnExportWebm.disabled = true;
 
     try {
-      if (!ffmpegInstance) {
-        const { createFFmpeg } = FFmpeg;
-        ffmpegInstance = createFFmpeg({
-          corePath: "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js",
-          log: false
-        });
-        await ffmpegInstance.load();
-      }
+      const tempVideo = document.createElement('video');
+      tempVideo.src = URL.createObjectURL(currentFile);
+      tempVideo.muted = true;
+      tempVideo.playsInline = true;
 
-      btnExportWebm.textContent = "⏳ 正在後台極速轉碼 WebM...";
-      const { fetchFile } = FFmpeg;
-      const inExt = currentFile.name.split('.').pop() || 'mp4';
-      const inName = `input.${inExt}`;
-      const outName = 'output.webm';
+      await new Promise((resolve) => {
+        tempVideo.onloadedmetadata = resolve;
+      });
 
-      ffmpegInstance.FS('writeFile', inName, await fetchFile(currentFile));
+      const start = (loopA !== null) ? loopA : 0;
+      const end = (loopB !== null && loopB > start) ? loopB : tempVideo.duration;
 
-      const args = [];
-      if (loopA !== null && loopB !== null) {
-        args.push('-ss', `${loopA}`, '-to', `${loopB}`);
-      }
-      args.push('-i', inName, '-c:v', 'libvpx', '-b:v', '1M', '-crf', '30', '-c:a', 'libopus', outName);
+      tempVideo.currentTime = start;
+      await new Promise(r => setTimeout(r, 150));
 
-      await ffmpegInstance.run(...args);
+      const stream = tempVideo.captureStream ? tempVideo.captureStream() : tempVideo.mozCaptureStream();
+      
+      let mime = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm;codecs=vp8';
+      if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
 
-      const data = ffmpegInstance.FS('readFile', outName);
-      const webmBlob = new Blob([data.buffer], { type: 'video/webm' });
-      const downloadUrl = URL.createObjectURL(webmBlob);
+      const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 });
+      const chunks = [];
 
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      const baseName = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || 'video';
-      a.download = `${baseName}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
 
-      ffmpegInstance.FS('unlink', inName);
-      ffmpegInstance.FS('unlink', outName);
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const baseName = currentFile.name.substring(0, currentFile.name.lastIndexOf('.')) || 'video';
+        a.download = `${baseName}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        URL.revokeObjectURL(tempVideo.src);
+        btnExportWebm.textContent = originalText;
+        btnExportWebm.disabled = false;
+      };
+
+      recorder.start();
+      // 雙倍速硬件轉錄
+      tempVideo.playbackRate = 2.0;
+      await tempVideo.play();
+
+      const checkTime = () => {
+        if (tempVideo.currentTime >= end || tempVideo.ended) {
+          tempVideo.removeEventListener('timeupdate', checkTime);
+          tempVideo.pause();
+          recorder.stop();
+        }
+      };
+      tempVideo.addEventListener('timeupdate', checkTime);
+
     } catch (err) {
       alert("轉碼失敗: " + err.message);
-    } finally {
       btnExportWebm.textContent = originalText;
       btnExportWebm.disabled = false;
     }
