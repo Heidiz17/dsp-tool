@@ -6,8 +6,8 @@
   <title>Tool 4: 影音播放與切片機 (Player & Cutter Pro)</title>
   
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
-  <!-- 純前端背景秒轉 WebM 核心引擎 -->
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+  <!-- 引入免 SharedArrayBuffer 限制嘅單線程 FFmpeg -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.10.1/dist/ffmpeg.min.js"></script>
 
   <style>
     :root {
@@ -381,15 +381,6 @@
 
   let ffmpegInstance = null;
 
-  async function getFFmpeg() {
-    if (!ffmpegInstance) {
-      const { createFFmpeg } = FFmpeg;
-      ffmpegInstance = createFFmpeg({ log: false });
-      await ffmpegInstance.load();
-    }
-    return ffmpegInstance;
-  }
-
   function fmt(sec) {
     if (isNaN(sec)) return "00:00.0";
     let m = Math.floor(sec / 60);
@@ -643,33 +634,40 @@
     }
   });
 
-  // 極速背景轉檔 WebM (免實時播放錄製，純內存快速壓製)
+  // 免 SharedArrayBuffer 限制嘅 WebM 背景轉碼核心
   btnExportWebm.addEventListener('click', async () => {
     if (!currentFile) { alert("請先載入影片！"); return; }
     const originalText = btnExportWebm.textContent;
-    btnExportWebm.textContent = "⏳ 引擎啟動中，直接轉碼中...";
+    btnExportWebm.textContent = "⏳ 載入免限制轉碼引擎...";
     btnExportWebm.disabled = true;
 
     try {
-      const ffmpeg = await getFFmpeg();
+      if (!ffmpegInstance) {
+        const { createFFmpeg } = FFmpeg;
+        ffmpegInstance = createFFmpeg({
+          corePath: "https://unpkg.com/@ffmpeg/core-st@0.11.1/dist/ffmpeg-core.js",
+          log: false
+        });
+        await ffmpegInstance.load();
+      }
+
+      btnExportWebm.textContent = "⏳ 正在後台極速轉碼 WebM...";
       const { fetchFile } = FFmpeg;
-      
       const inExt = currentFile.name.split('.').pop() || 'mp4';
       const inName = `input.${inExt}`;
       const outName = 'output.webm';
 
-      ffmpeg.FS('writeFile', inName, await fetchFile(currentFile));
+      ffmpegInstance.FS('writeFile', inName, await fetchFile(currentFile));
 
       const args = [];
-      // 若設有 AB 點則快速精確切片，若無則全片轉換
       if (loopA !== null && loopB !== null) {
         args.push('-ss', `${loopA}`, '-to', `${loopB}`);
       }
-      args.push('-i', inName, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '30', '-c:a', 'libopus', outName);
+      args.push('-i', inName, '-c:v', 'libvpx', '-b:v', '1M', '-crf', '30', '-c:a', 'libopus', outName);
 
-      await ffmpeg.run(...args);
+      await ffmpegInstance.run(...args);
 
-      const data = ffmpeg.FS('readFile', outName);
+      const data = ffmpegInstance.FS('readFile', outName);
       const webmBlob = new Blob([data.buffer], { type: 'video/webm' });
       const downloadUrl = URL.createObjectURL(webmBlob);
 
@@ -681,10 +679,10 @@
       a.click();
       document.body.removeChild(a);
 
-      ffmpeg.FS('unlink', inName);
-      ffmpeg.FS('unlink', outName);
+      ffmpegInstance.FS('unlink', inName);
+      ffmpegInstance.FS('unlink', outName);
     } catch (err) {
-      alert("WebM 轉碼失敗: " + err.message);
+      alert("轉碼失敗: " + err.message);
     } finally {
       btnExportWebm.textContent = originalText;
       btnExportWebm.disabled = false;
